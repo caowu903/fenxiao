@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分销数据看板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f7f8fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; color: #1a1a2e; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px 32px; }
+.header h1 { color: #fff; font-size: 22px; font-weight: 700; }
+.header .meta { color: rgba(255,255,255,0.5); font-size: 13px; margin-top: 4px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+.section-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; padding-left: 12px; border-left: 4px solid #3b82f6; }
+.kpi-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.kpi-card { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; flex: 1; min-width: 160px; }
+.kpi-label { font-size: 13px; color: #8c8c8c; margin-bottom: 8px; }
+.kpi-value { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+
+.charts-row { display: flex; gap: 16px; margin-bottom: 28px; }
+.chart-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; }
+.chart-card.wide { flex: 2; }
+.chart-card.narrow { flex: 1; }
+.chart-card.full { width: 100%; margin-bottom: 28px; }
+
+.table-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; margin-bottom: 24px; }
+.table-card .table-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead tr { border-bottom: 2px solid #e8e8e8; background: #fafafa; }
+thead th { padding: 12px; color: #8c8c8c; font-weight: 500; }
+tbody tr { border-bottom: 1px solid #f5f5f5; }
+tbody tr:hover { background: #f8faff; }
+tbody td { padding: 12px; }
+tfoot tr { background: #fafafa; font-weight: 600; }
+tfoot td { padding: 12px; }
+.left { text-align: left; }
+.right { text-align: right; }
+.bold { font-weight: 600; }
+.blue { color: #3b82f6; }
+.rank-num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; }
+.rank-top { background: #3b82f6; color: #fff; }
+.rank-normal { background: #e5e7eb; color: #666; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>分销数据看板</h1>
+  <div class="meta" id="header-date"></div>
+</div>
+
+<div class="container">
+  <!-- 日期筛选 -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <label style="font-size:14px;color:#666;">日期范围：</label>
+    <input type="date" id="date-start" style="padding:6px 12px;border-radius:6px;border:1px solid #e5e7eb;font-size:14px;" />
+    <span style="color:#999;">至</span>
+    <input type="date" id="date-end" style="padding:6px 12px;border-radius:6px;border:1px solid #e5e7eb;font-size:14px;" />
+    <button id="date-apply" style="padding:6px 16px;border-radius:6px;border:none;background:#3b82f6;color:#fff;font-size:14px;cursor:pointer;">筛选</button>
+  </div>
+
+  <!-- ========== 第一部分：汇总数据 ========== -->
+  <div class="section-title">汇总数据</div>
+  <div class="kpi-row" id="kpi-row"></div>
+  <div class="chart-card full" style="margin-bottom:28px;">
+    <div style="font-size:15px;font-weight:600;margin-bottom:16px;">成交趋势</div>
+    <div id="chart-trend" style="height:280px;"></div>
+  </div>
+  <div class="chart-card full">
+    <div style="font-size:15px;font-weight:600;margin-bottom:16px;">GMV 与佣金趋势</div>
+    <div id="chart-gmv" style="height:240px;"></div>
+  </div>
+
+  <!-- ========== 第二部分：订单明细 ========== -->
+  <div class="section-title">订单明细</div>
+  <div class="table-card">
+    <div class="table-top">
+      <div style="font-size:15px;font-weight:600;">订单明细</div>
+      <div style="font-size:12px;color:#999;" id="product-count"></div>
+    </div>
+    <div id="product-table"></div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  每天只需修改下面 DATA 对象中的数值，页面自动渲染            ║
+// ║  不要修改字段名，只改数值即可                                ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+const DATA = {
+  // 数据日期
+  date: "2026-09-10",
+
+  // 汇总 KPI
+  summary: {
+    gmv: 128650,          // 成交金额（元）
+    orders: 1342,          // 成交笔数
+    commission: 9830,      // 佣金金额（元）
+  },
+
+  // 每日趋势（按日期顺序，保留近7天或更多）
+  trend: [
+    { date: "09-04", orders: 1050, gmv: 98500,  commission: 7200 },
+    { date: "09-05", orders: 1180, gmv: 112000, commission: 8100 },
+    { date: "09-06", orders: 980,  gmv: 89600,  commission: 6500 },
+    { date: "09-07", orders: 890,  gmv: 82300,  commission: 5900 },
+    { date: "09-08", orders: 1260, gmv: 118700, commission: 8600 },
+    { date: "09-09", orders: 1198, gmv: 115200, commission: 8720 },
+    { date: "09-10", orders: 1342, gmv: 128650, commission: 9830 },
+  ],
+
+  // 订单明细数据
+  orders: [
+    // 09-04
+    { date: "2026-09-04", orderId: "2026090400001", gmv: 299.00,  subsidy: 30.00,  commission: 23.92 },
+    { date: "2026-09-04", orderId: "2026090400002", gmv: 1280.00, subsidy: 50.00,  commission: 110.88 },
+    { date: "2026-09-04", orderId: "2026090400003", gmv: 89.90,   subsidy: 10.00,  commission: 7.19 },
+    { date: "2026-09-04", orderId: "2026090400004", gmv: 458.00,  subsidy: 0.00,   commission: 41.22 },
+    { date: "2026-09-04", orderId: "2026090400005", gmv: 1680.00, subsidy: 80.00,  commission: 144.00 },
+    { date: "2026-09-04", orderId: "2026090400006", gmv: 75.00,   subsidy: 5.00,   commission: 6.30 },
+    // 09-05
+    { date: "2026-09-05", orderId: "2026090500001", gmv: 358.00,  subsidy: 20.00,  commission: 30.43 },
+    { date: "2026-09-05", orderId: "2026090500002", gmv: 199.00,  subsidy: 0.00,   commission: 17.91 },
+    { date: "2026-09-05", orderId: "2026090500003", gmv: 2380.00, subsidy: 100.00, commission: 204.72 },
+    { date: "2026-09-05", orderId: "2026090500004", gmv: 45.00,   subsidy: 5.00,   commission: 3.60 },
+    { date: "2026-09-05", orderId: "2026090500005", gmv: 890.00,  subsidy: 40.00,  commission: 76.56 },
+    { date: "2026-09-05", orderId: "2026090500006", gmv: 520.00,  subsidy: 30.00,  commission: 44.20 },
+    { date: "2026-09-05", orderId: "2026090500007", gmv: 168.00,  subsidy: 0.00,   commission: 15.12 },
+    // 09-06
+    { date: "2026-09-06", orderId: "2026090600001", gmv: 199.00,  subsidy: 20.00,  commission: 15.92 },
+    { date: "2026-09-06", orderId: "2026090600002", gmv: 780.00,  subsidy: 40.00,  commission: 66.56 },
+    { date: "2026-09-06", orderId: "2026090600003", gmv: 358.00,  subsidy: 0.00,   commission: 32.22 },
+    { date: "2026-09-06", orderId: "2026090600004", gmv: 1280.00, subsidy: 60.00,  commission: 109.76 },
+    { date: "2026-09-06", orderId: "2026090600005", gmv: 89.90,   subsidy: 10.00,  commission: 7.19 },
+    // 09-07
+    { date: "2026-09-07", orderId: "2026090700001", gmv: 458.00,  subsidy: 25.00,  commission: 38.93 },
+    { date: "2026-09-07", orderId: "2026090700002", gmv: 168.00,  subsidy: 0.00,   commission: 15.12 },
+    { date: "2026-09-07", orderId: "2026090700003", gmv: 2100.00, subsidy: 100.00, commission: 180.00 },
+    { date: "2026-09-07", orderId: "2026090700004", gmv: 75.00,   subsidy: 5.00,   commission: 6.30 },
+    { date: "2026-09-07", orderId: "2026090700005", gmv: 520.00,  subsidy: 30.00,  commission: 44.20 },
+    // 09-08
+    { date: "2026-09-08", orderId: "2026090800001", gmv: 1280.00, subsidy: 50.00,  commission: 110.88 },
+    { date: "2026-09-08", orderId: "2026090800002", gmv: 358.00,  subsidy: 20.00,  commission: 30.43 },
+    { date: "2026-09-08", orderId: "2026090800003", gmv: 1980.00, subsidy: 80.00,  commission: 170.64 },
+    { date: "2026-09-08", orderId: "2026090800004", gmv: 89.90,   subsidy: 10.00,  commission: 7.19 },
+    { date: "2026-09-08", orderId: "2026090800005", gmv: 458.00,  subsidy: 0.00,   commission: 41.22 },
+    { date: "2026-09-08", orderId: "2026090800006", gmv: 299.00,  subsidy: 15.00,  commission: 25.42 },
+    { date: "2026-09-08", orderId: "2026090800007", gmv: 1680.00, subsidy: 70.00,  commission: 144.48 },
+    // 09-09
+    { date: "2026-09-09", orderId: "2026090900001", gmv: 299.00,  subsidy: 30.00,  commission: 24.27 },
+    { date: "2026-09-09", orderId: "2026090900002", gmv: 168.00,  subsidy: 0.00,   commission: 15.12 },
+    { date: "2026-09-09", orderId: "2026090900003", gmv: 520.00,  subsidy: 40.00,  commission: 43.20 },
+    { date: "2026-09-09", orderId: "2026090900004", gmv: 75.00,   subsidy: 0.00,   commission: 6.75 },
+    { date: "2026-09-09", orderId: "2026090900005", gmv: 1980.00, subsidy: 100.00, commission: 168.48 },
+    { date: "2026-09-09", orderId: "2026090900006", gmv: 358.00,  subsidy: 20.00,  commission: 30.43 },
+    { date: "2026-09-09", orderId: "2026090900007", gmv: 890.00,  subsidy: 45.00,  commission: 75.84 },
+    { date: "2026-09-09", orderId: "2026090900008", gmv: 1280.00, subsidy: 60.00,  commission: 109.76 },
+    // 09-10
+    { date: "2026-09-10", orderId: "2026091000001", gmv: 199.00,  subsidy: 20.00,  commission: 17.91 },
+    { date: "2026-09-10", orderId: "2026091000002", gmv: 358.00,  subsidy: 0.00,   commission: 32.22 },
+    { date: "2026-09-10", orderId: "2026091000003", gmv: 89.90,   subsidy: 10.00,  commission: 7.19 },
+    { date: "2026-09-10", orderId: "2026091000004", gmv: 1280.00, subsidy: 50.00,  commission: 110.88 },
+    { date: "2026-09-10", orderId: "2026091000005", gmv: 45.00,   subsidy: 5.00,   commission: 3.60 },
+    { date: "2026-09-10", orderId: "2026091000006", gmv: 2380.00, subsidy: 100.00, commission: 204.72 },
+    { date: "2026-09-10", orderId: "2026091000007", gmv: 520.00,  subsidy: 30.00,  commission: 44.20 },
+    { date: "2026-09-10", orderId: "2026091000008", gmv: 1680.00, subsidy: 70.00,  commission: 144.48 },
+    { date: "2026-09-10", orderId: "2026091000009", gmv: 299.00,  subsidy: 15.00,  commission: 25.42 },
+    { date: "2026-09-10", orderId: "2026091000010", gmv: 780.00,  subsidy: 40.00,  commission: 66.56 },
+  ]
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  以下为渲染逻辑，不需要修改                                  ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+const money = n => "¥" + n.toLocaleString();
+
+// 获取昨日（YYYY-MM-DD）
+function getYesterday() {
+  var d = new Date();
+  d.setDate(d.getDate() - 1);
+  var m = (d.getMonth() + 1).toString().padStart(2, "0");
+  var day = d.getDate().toString().padStart(2, "0");
+  return d.getFullYear() + "-" + m + "-" + day;
+}
+
+// 渲染
+function render() {
+  var startDate = document.getElementById("date-start").value;
+  var endDate = document.getElementById("date-end").value;
+  var filteredOrders = DATA.orders.filter(function(o) {
+    return o.date >= startDate && o.date <= endDate;
+  });
+
+  // 头部
+  document.getElementById("header-date").textContent = "日期范围：" + startDate + " 至 " + endDate;
+
+  // KPI
+  var totalGmv = filteredOrders.reduce(function(a, o) { return a + o.gmv; }, 0);
+  var totalOrders = filteredOrders.length;
+  var totalCommission = filteredOrders.reduce(function(a, o) { return a + o.commission; }, 0);
+
+  var kpis = [
+    { label: "成交金额", value: money(totalGmv) },
+    { label: "成交笔数", value: totalOrders + " 笔" },
+    { label: "佣金金额", value: money(totalCommission) },
+  ];
+  document.getElementById("kpi-row").innerHTML = kpis.map(function(k) {
+    return '<div class="kpi-card"><div class="kpi-label">' + k.label + '</div><div class="kpi-value">' + k.value + '</div></div>';
+  }).join("");
+
+  // 订单明细表
+  var totalS = filteredOrders.reduce(function(a, o) { return a + o.subsidy; }, 0);
+  document.getElementById("product-count").textContent = "共 " + filteredOrders.length + " 条订单";
+
+  var html = '<table><thead><tr>' +
+    '<th class="left">日期</th>' +
+    '<th class="left">主订单ID</th>' +
+    '<th class="right">成交金额</th>' +
+    '<th class="right">补贴金额</th>' +
+    '<th class="right">佣金金额</th>' +
+    '</tr></thead><tbody>';
+
+  if (filteredOrders.length === 0) {
+    html += '<tr><td colspan="5" style="text-align:center;padding:24px;color:#999;">该日期范围暂无数据</td></tr>';
+  } else {
+    filteredOrders.forEach(function(o) {
+      html += '<tr>' +
+        '<td class="left">' + o.date + '</td>' +
+        '<td class="left" style="font-family:monospace">' + o.orderId + '</td>' +
+        '<td class="right bold">' + money(o.gmv) + '</td>' +
+        '<td class="right">' + money(o.subsidy) + '</td>' +
+        '<td class="right blue">' + money(o.commission) + '</td>' +
+        '</tr>';
+    });
+  }
+
+  html += '<tfoot><tr>' +
+    '<td class="left" style="color:#8c8c8c">合计</td><td></td>' +
+    '<td class="right">' + money(totalGmv) + '</td>' +
+    '<td class="right">' + money(totalS) + '</td>' +
+    '<td class="right blue">' + money(totalCommission) + '</td>' +
+    '</tr></tfoot></table>';
+
+  document.getElementById("product-table").innerHTML = html;
+}
+
+// 初始化日期（默认展示全部数据范围）
+var allDates = DATA.orders.map(function(o){return o.date}).sort();
+document.getElementById("date-start").value = allDates[0];
+document.getElementById("date-end").value = allDates[allDates.length - 1];
+
+// 筛选按钮
+document.getElementById("date-apply").addEventListener("click", render);
+
+// 首次渲染
+render();
+
+// 趋势图（不受日期筛选影响）
+var trendChart = echarts.init(document.getElementById("chart-trend"));
+trendChart.setOption({
+  tooltip: { trigger: "axis" },
+  legend: { data: ["成交金额", "成交笔数"], bottom: 0, textStyle: { fontSize: 12 } },
+  grid: { top: 10, right: 60, bottom: 40, left: 60 },
+  xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
+  yAxis: [
+    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
+    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
+  ],
+  series: [
+    { name: "成交金额", type: "line", data: DATA.trend.map(function(d){return d.gmv}), smooth: true, symbol: "none",
+      lineStyle: { color: "#3b82f6", width: 2 },
+      areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(59,130,246,0.15)" }, { offset: 1, color: "rgba(59,130,246,0)" }] } } },
+    { name: "成交笔数", type: "line", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.orders}), smooth: true,
+      lineStyle: { color: "#f59e0b", width: 2 }, itemStyle: { color: "#f59e0b" }, symbol: "circle", symbolSize: 6 }
+  ]
+});
+
+var gmvChart = echarts.init(document.getElementById("chart-gmv"));
+gmvChart.setOption({
+  tooltip: { trigger: "axis" },
+  legend: { data: ["GMV", "佣金"], bottom: 0, textStyle: { fontSize: 12 } },
+  grid: { top: 10, right: 60, bottom: 40, left: 60 },
+  xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
+  yAxis: [
+    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
+    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
+  ],
+  series: [
+    { name: "GMV", type: "bar", data: DATA.trend.map(function(d){return d.gmv}), barWidth: 28, itemStyle: { color: "#3b82f6", borderRadius: [4, 4, 0, 0] } },
+    { name: "佣金", type: "bar", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.commission}), barWidth: 28, itemStyle: { color: "#60a5fa", borderRadius: [4, 4, 0, 0] } }
+  ]
+});
+
+window.addEventListener("resize", function() {
+  trendChart.resize(); gmvChart.resize();
+});
+</script>
+</body>
+</html>
