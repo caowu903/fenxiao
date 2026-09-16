@@ -2276,6 +2276,10 @@ const DATA = {
 
 const money = n => "¥" + n.toLocaleString();
 
+// 分页全局变量
+var PAGE_SIZE = 20;
+var currentPage = 1;
+
 // 获取昨日（YYYY-MM-DD）
 function getYesterday() {
   var d = new Date();
@@ -2310,9 +2314,21 @@ function render() {
     return '<div class="kpi-card"><div class="kpi-label">' + k.label + '</div><div class="kpi-value">' + k.value + '</div></div>';
   }).join("");
 
-  // 订单明细表
+  // 订单明细表（分页）
+  var totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+
+  var startIdx = (currentPage - 1) * PAGE_SIZE;
+  var endIdx = Math.min(startIdx + PAGE_SIZE, filteredOrders.length);
+  var pageOrders = filteredOrders.slice(startIdx, endIdx);
+
   var totalS = filteredOrders.reduce(function(a, o) { return a + o.subsidy; }, 0);
-  document.getElementById("product-count").textContent = "共 " + filteredOrders.length + " 条订单";
+  document.getElementById("product-count").innerHTML = "共 " + filteredOrders.length + " 条订单" +
+    ' <span style="margin-left:12px;">每页</span>' +
+    '<select id="page-size" onchange="changePageSize(this.value)" style="padding:2px 6px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;margin:0 4px;">' +
+    [10,20,50,100].map(function(n){return '<option value="'+n+'"'+(n===PAGE_SIZE?' selected':'')+'>'+n+'</option>'}).join('') +
+    '</select>条 ' +
+    '<span style="margin-left:8px;color:#3b82f6;font-weight:600;">第 '+currentPage+'/'+totalPages+' 页</span>';
 
   var html = '<table><thead><tr>' +
     '<th class="left">日期</th>' +
@@ -2322,10 +2338,10 @@ function render() {
     '<th class="right">佣金金额</th>' +
     '</tr></thead><tbody>';
 
-  if (filteredOrders.length === 0) {
+  if (pageOrders.length === 0) {
     html += '<tr><td colspan="5" style="text-align:center;padding:24px;color:#999;">该日期范围暂无数据</td></tr>';
   } else {
-    filteredOrders.forEach(function(o) {
+    pageOrders.forEach(function(o) {
       html += '<tr>' +
         '<td class="left">' + o.date + '</td>' +
         '<td class="left" style="font-family:monospace">' + o.orderId + '</td>' +
@@ -2343,7 +2359,26 @@ function render() {
     '<td class="right blue">' + money(totalCommission) + '</td>' +
     '</tr></tfoot></table>';
 
+  // 分页控件
+  html += '<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;">' +
+    '<button onclick="goPage(1)" style="padding:4px 10px;border:1px solid #e5e7eb;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;"'+(currentPage<=1?' disabled':'')+'>首页</button>' +
+    '<button onclick="goPage('+(currentPage-1)+')" style="padding:4px 10px;border:1px solid #e5e7eb;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;"'+(currentPage<=1?' disabled':'')+'>上一页</button>' +
+    '<span style="font-size:13px;color:#666;">'+currentPage+' / '+totalPages+'</span>' +
+    '<button onclick="goPage('+(currentPage+1)+')" style="padding:4px 10px;border:1px solid #e5e7eb;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;"'+(currentPage>=totalPages?' disabled':'')+'>下一页</button>' +
+    '<button onclick="goPage('+totalPages+')" style="padding:4px 10px;border:1px solid #e5e7eb;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;"'+(currentPage>=totalPages?' disabled':'')+'>末页</button>' +
+    '</div>';
+
   document.getElementById("product-table").innerHTML = html;
+}
+
+function goPage(p) {
+  currentPage = p;
+  render();
+}
+function changePageSize(n) {
+  PAGE_SIZE = parseInt(n);
+  currentPage = 1;
+  render();
 }
 
 // 初始化日期（默认展示全部数据范围）
