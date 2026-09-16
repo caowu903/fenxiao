@@ -93,7 +93,10 @@ tfoot td { padding: 12px; }
   <div class="table-card">
     <div class="table-top">
       <div style="font-size:15px;font-weight:600;">订单明细</div>
-      <div style="font-size:12px;color:#999;" id="product-count"></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:12px;color:#999;" id="product-count"></div>
+        <button onclick="downloadCSV()" style="padding:4px 12px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;font-size:12px;cursor:pointer;font-weight:500;">下载 CSV</button>
+      </div>
     </div>
     <div id="product-table"></div>
   </div>
@@ -2379,6 +2382,35 @@ function changePageSize(n) {
   PAGE_SIZE = parseInt(n);
   currentPage = 1;
   render();
+}
+
+// 下载 CSV
+function downloadCSV() {
+  var selectedDate = document.getElementById("date-filter") ? document.getElementById("date-filter").value : "";
+  var startDate = document.getElementById("date-start").value;
+  var endDate = document.getElementById("date-end").value;
+  var filtered = DATA.orders.filter(function(o) { return o.date >= startDate && o.date <= endDate; });
+
+  var bom = "\uFEFF";
+  var header = "日期,主订单ID,成交金额,补贴金额,佣金金额\n";
+  var rows = filtered.map(function(o) {
+    return o.date + "," + o.orderId + "," + o.gmv + "," + o.subsidy + "," + o.commission;
+  }).join("\n");
+
+  var totalGmv = filtered.reduce(function(a, o) { return a + o.gmv; }, 0);
+  var totalSubsidy = filtered.reduce(function(a, o) { return a + o.subsidy; }, 0);
+  var totalCommission = filtered.reduce(function(a, o) { return a + o.commission; }, 0);
+  var footer = "\n合计,," + totalGmv + "," + totalSubsidy + "," + totalCommission;
+
+  var blob = new Blob([bom + header + rows + footer], { type: "text/csv;charset=utf-8;" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "订单明细_" + startDate + "_" + endDate + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // 初始化日期（默认展示全部数据范围）
