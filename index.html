@@ -3764,57 +3764,69 @@ document.getElementById("date-apply").addEventListener("click", render);
 // 首次渲染
 render();
 
-// 趋势图（不受日期筛选影响）
-var trendChart = echarts.init(document.getElementById("chart-trend"));
-trendChart.setOption({
-  tooltip: { trigger: "axis" },
-  legend: { data: ["成交金额", "成交笔数"], bottom: 0, textStyle: { fontSize: 12 } },
-  grid: { top: 10, right: 60, bottom: 40, left: 60 },
-  xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
-  yAxis: [
-    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
-    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
-  ],
-  series: [
-    { name: "成交金额", type: "line", data: DATA.trend.map(function(d){return d.gmv}), smooth: true, symbol: "none",
-      lineStyle: { color: "#3b82f6", width: 2 },
-      areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(59,130,246,0.15)" }, { offset: 1, color: "rgba(59,130,246,0)" }] } } },
-    { name: "成交笔数", type: "line", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.orders}), smooth: true,
-      lineStyle: { color: "#f59e0b", width: 2 }, itemStyle: { color: "#f59e0b" }, symbol: "circle", symbolSize: 6 }
-  ]
-});
+// 图表配置（延迟到密码通过后初始化）
+var trendChart, gmvChart;
+var chartsInited = false;
 
-var gmvChart = echarts.init(document.getElementById("chart-gmv"));
-gmvChart.setOption({
-  tooltip: { trigger: "axis" },
-  legend: { data: ["GMV", "佣金"], bottom: 0, textStyle: { fontSize: 12 } },
-  grid: { top: 10, right: 60, bottom: 40, left: 60 },
-  xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
-  yAxis: [
-    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
-    { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
-  ],
-  series: [
-    { name: "GMV", type: "bar", data: DATA.trend.map(function(d){return d.gmv}), barWidth: 28, itemStyle: { color: "#3b82f6", borderRadius: [4, 4, 0, 0] } },
-    { name: "佣金", type: "bar", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.commission}), barWidth: 28, itemStyle: { color: "#60a5fa", borderRadius: [4, 4, 0, 0] } }
-  ]
-});
+function initCharts() {
+  if (chartsInited) return;
+  chartsInited = true;
 
-window.addEventListener("resize", function() {
-  trendChart.resize(); gmvChart.resize();
-});
+  trendChart = echarts.init(document.getElementById("chart-trend"));
+  trendChart.setOption({
+    tooltip: { trigger: "axis" },
+    legend: { data: ["成交金额", "成交笔数"], bottom: 0, textStyle: { fontSize: 12 } },
+    grid: { top: 10, right: 60, bottom: 40, left: 60 },
+    xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
+    yAxis: [
+      { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
+      { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
+    ],
+    series: [
+      { name: "成交金额", type: "line", data: DATA.trend.map(function(d){return d.gmv}), smooth: true, symbol: "none",
+        lineStyle: { color: "#3b82f6", width: 2 },
+        areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(59,130,246,0.15)" }, { offset: 1, color: "rgba(59,130,246,0)" }] } } },
+      { name: "成交笔数", type: "line", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.orders}), smooth: true,
+        lineStyle: { color: "#f59e0b", width: 2 }, itemStyle: { color: "#f59e0b" }, symbol: "circle", symbolSize: 6 }
+    ]
+  });
+
+  gmvChart = echarts.init(document.getElementById("chart-gmv"));
+  gmvChart.setOption({
+    tooltip: { trigger: "axis" },
+    legend: { data: ["GMV", "佣金"], bottom: 0, textStyle: { fontSize: 12 } },
+    grid: { top: 10, right: 60, bottom: 40, left: 60 },
+    xAxis: { type: "category", data: DATA.trend.map(function(d){return d.date}), axisLabel: { fontSize: 12, color: "#999" } },
+    yAxis: [
+      { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { lineStyle: { color: "#f0f0f0" } } },
+      { type: "value", axisLabel: { fontSize: 12, color: "#999" }, splitLine: { show: false } }
+    ],
+    series: [
+      { name: "GMV", type: "bar", data: DATA.trend.map(function(d){return d.gmv}), barWidth: 28, itemStyle: { color: "#3b82f6", borderRadius: [4, 4, 0, 0] } },
+      { name: "佣金", type: "bar", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.commission}), barWidth: 28, itemStyle: { color: "#60a5fa", borderRadius: [4, 4, 0, 0] } }
+    ]
+  });
+
+  window.addEventListener("resize", function() {
+    if (trendChart) trendChart.resize();
+    if (gmvChart) gmvChart.resize();
+  });
+}
 
 // 密码验证
 var PASSWORD = "fenxiao2026";  // TODO: 修改为你的密码
 
+function showDashboard() {
+  document.getElementById("password-gate").style.display = "none";
+  document.getElementById("dashboard-content").style.display = "block";
+  setTimeout(initCharts, 100);
+}
+
 function checkPwd() {
   var input = document.getElementById("pwd-input").value;
   if (input === PASSWORD) {
-    document.getElementById("password-gate").style.display = "none";
-    document.getElementById("dashboard-content").style.display = "block";
     sessionStorage.setItem("auth", "1");
-    // 密码通过后初始化图表
-    if (typeof trendChart !== "undefined") { trendChart.resize(); gmvChart.resize(); }
+    showDashboard();
   } else {
     document.getElementById("pwd-error").style.display = "block";
     document.getElementById("pwd-input").value = "";
@@ -3823,8 +3835,7 @@ function checkPwd() {
 
 // 如果本次会话已验证，直接显示
 if (sessionStorage.getItem("auth") === "1") {
-  document.getElementById("password-gate").style.display = "none";
-  document.getElementById("dashboard-content").style.display = "block";
+  showDashboard();
 }
 </script>
 </div>
