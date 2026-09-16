@@ -322,7 +322,15 @@ var PASSWORD = "fenxiao2026";  // TODO: 修改为你的密码
 function showDashboard() {
   document.getElementById("password-gate").style.display = "none";
   document.getElementById("dashboard-content").style.display = "block";
-  setTimeout(initCharts, 100);
+  waitForECharts();
+}
+
+function waitForECharts() {
+  if (typeof echarts !== "undefined") {
+    initCharts();
+  } else {
+    setTimeout(waitForECharts, 200);
+  }
 }
 
 function checkPwd() {
