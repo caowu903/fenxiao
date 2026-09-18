@@ -143,9 +143,9 @@ function render() {
   var totalCommission = filteredOrders.reduce(function(a, o) { return a + o.commission; }, 0);
 
   var kpis = [
-    { label: "成交金额", value: money(totalGmv) },
+    { label: "成交金额", value: "¥" + Math.round(totalGmv).toLocaleString() },
     { label: "成交笔数", value: totalOrders + " 笔" },
-    { label: "佣金金额", value: money(totalCommission) },
+    { label: "佣金金额", value: "¥" + Math.round(totalCommission).toLocaleString() },
   ];
   document.getElementById("kpi-row").innerHTML = kpis.map(function(k) {
     return '<div class="kpi-card"><div class="kpi-label">' + k.label + '</div><div class="kpi-value">' + k.value + '</div></div>';
