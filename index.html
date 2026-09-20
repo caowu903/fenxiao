@@ -140,11 +140,13 @@ function render() {
   // KPI
   var totalGmv = filteredOrders.reduce(function(a, o) { return a + o.gmv; }, 0);
   var totalOrders = filteredOrders.length;
+  var totalRefund = filteredOrders.reduce(function(a, o) { return a + o.refund; }, 0);
   var totalCommission = filteredOrders.reduce(function(a, o) { return a + o.commission; }, 0);
 
   var kpis = [
     { label: "成交金额", value: "¥" + Math.round(totalGmv).toLocaleString() },
     { label: "成交笔数", value: totalOrders + " 笔" },
+    { label: "退款金额", value: "¥" + Math.round(totalRefund).toLocaleString() },
     { label: "佣金金额", value: "¥" + Math.round(totalCommission).toLocaleString() },
   ];
   document.getElementById("kpi-row").innerHTML = kpis.map(function(k) {
