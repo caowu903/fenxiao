@@ -339,7 +339,7 @@ function waitForECharts() {
 function checkPwd() {
   var input = document.getElementById("pwd-input").value;
   if (input === PASSWORD) {
-    sessionStorage.setItem("auth", "1");
+    localStorage.setItem("auth", "1");
     showDashboard();
   } else {
     document.getElementById("pwd-error").style.display = "block";
@@ -348,7 +348,7 @@ function checkPwd() {
 }
 
 // 如果本次会话已验证，直接显示
-if (sessionStorage.getItem("auth") === "1") {
+if (localStorage.getItem("auth") === "1") {
   showDashboard();
 }
 </script>
