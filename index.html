@@ -290,6 +290,7 @@ function initCharts() {
         areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(59,130,246,0.15)" }, { offset: 1, color: "rgba(59,130,246,0)" }] } } },
       { name: "退款金额", type: "line", data: DATA.trend.map(function(d){return d.refund}), smooth: true, symbol: "none",
         lineStyle: { color: "#e94560", width: 2 },
+        itemStyle: { color: "#e94560" },
         areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(233,69,96,0.1)" }, { offset: 1, color: "rgba(233,69,96,0)" }] } } },
       { name: "成交笔数", type: "line", yAxisIndex: 1, data: DATA.trend.map(function(d){return d.orders}), smooth: true,
         lineStyle: { color: "#f59e0b", width: 2 }, itemStyle: { color: "#f59e0b" }, symbol: "circle", symbolSize: 6 }
