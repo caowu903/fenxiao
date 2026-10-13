@@ -75,7 +75,7 @@ tfoot td { padding: 12px; }
 .fb-row input[type=date] { width:150px; }
 .fb-sep { color:#999; }
 .fb-hint { margin-top:10px;font-size:12px;color:#6b7280; }
-.fb-hint b { color:#1d4ed8; }
+.chart-empty { display:flex;align-items:center;justify-content:center;height:300px;color:#9ca3af;font-size:13px; }
 .fb-off { display:none !important; }
 </style>
 </head>
@@ -95,7 +95,6 @@ tfoot td { padding: 12px; }
 <div id="dashboard-content">
   <div class="header">
     <h1>分销数据平台</h1>
-    <div class="meta" id="meta-line">加载中...</div>
   </div>
   <div class="container">
     <div class="ident" id="ident-bar"></div>
@@ -110,13 +109,12 @@ tfoot td { padding: 12px; }
         <select id="chan-sel" onchange="applyFilter()"></select>
         <button class="btn" onclick="resetFilter()">重置</button>
       </div>
-      <div class="fb-hint" id="filter-hint"></div>
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
-      <div class="chart-card narrow"><div class="section-title">金额构成</div><div id="chart-gmv" style="height:300px"></div></div>
+      <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
     </div>
     <div class="table-card">
       <div class="table-top"><div class="section-title" style="margin:0" id="chan-title">渠道汇总</div>
@@ -138,11 +136,12 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"d670695a9b5b610281e73c2834165747","i":300000},"a53d34e16eaa808a":{"s":"3c8b2d8247cbd2aaa9242684b0862e27","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"f74e6002c56a42fc5edb47df752f1ac5","i":300000},"a53d34e16eaa808a":{"s":"e75b4ab1023fd023453cff85d86b9eca","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
-let allDates = [], chartBox = {};
+let allDates = [], chartBox = {}, commChart = false;
+const QUICK_DEFAULT = '30';
 const UN = '未归属';
 const SENT = '__unassigned__';
 const l1of = o => (!o.l1 || o.l1 === SENT) ? UN : o.l1;
@@ -207,17 +206,18 @@ function boot(payload) {
   document.getElementById('password-gate').style.display = 'none';
   document.getElementById('dashboard-content').style.display = 'block';
   ordPage = 1; ordSize = 20; chanPage = 1;
+  Object.keys(chartBox).forEach(k => { try { chartBox[k].dispose(); } catch (e) {} });
+  chartBox = {};
   document.getElementById('size-sel').value = '20';
-  buildIdent(); buildFilterBar(); applyFilter(); waitForECharts();
+  commChart = prepareCommissionCard();
+  buildIdent(); buildFilterBar(); quickRange(QUICK_DEFAULT); waitForECharts();
 }
 
 function buildIdent() {
   const m = DATA.meta, lv = DATA.lv2Count || 0;
   const dr = m.dateRange ? m.dateRange[0] + ' ~ ' + m.dateRange[1] : '全部日期';
   document.getElementById('ident-bar').innerHTML =
-    '<div>当前身份：<b>' + m.label + '</b>（' + (role === 'admin' ? '管理员，可见全部渠道' : '一级渠道，含 ' + lv + ' 个二级渠道') + '）</div>' +
-    '<div>数据范围：' + dr + ' · 共 <b>' + m.orders + '</b> 单 · 构建于 ' + m.builtAt + '</div>';
-  document.getElementById('meta-line').textContent = '数据日期 ' + m.sourceDate + ' · 订单 ' + m.orders + ' 笔';
+    '<div>当前身份：<b>' + m.label + '</b>（' + (role === 'admin' ? '管理员，可见全部渠道' : '一级渠道，含 ' + lv + ' 个二级渠道') + '）</div>';
 }
 
 function buildKPI() {
@@ -275,7 +275,7 @@ function buildFilterBar() {
   const ds = document.getElementById('date-start'), de = document.getElementById('date-end');
   ds.min = de.min = allDates[0] || ''; ds.max = de.max = allDates[allDates.length - 1] || '';
   ds.value = ''; de.value = '';
-  document.getElementById('quick-sel').value = '';
+  document.getElementById('quick-sel').value = QUICK_DEFAULT;
   const l1sel = document.getElementById('l1-sel');
   const names = uniq(DATA.orders.map(l1of)).sort();
   l1sel.innerHTML = '<option value="">全部一级渠道</option>' + names.map(n => '<option>' + n + '</option>').join('');
@@ -338,20 +338,6 @@ function deriveView(list) {
   }).sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
 }
 
-function updateHint() {
-  const s = document.getElementById('date-start').value, e = document.getElementById('date-end').value;
-  const l1 = document.getElementById('l1-sel').value, l2 = document.getElementById('chan-sel').value;
-  const parts = [];
-  if (s || e) parts.push('日期 ' + (s || '最早') + ' ~ ' + (e || '最新'));
-  if (role === 'admin' && l1) parts.push('一级渠道 ' + l1);
-  if (l2) parts.push('二级渠道 ' + l2);
-  const el = document.getElementById('filter-hint');
-  if (!parts.length) {
-    el.innerHTML = '未设置筛选 · 当前展示全部 <b>' + filtered.length + '</b> 单（' + allDates[0] + ' ~ ' + allDates[allDates.length - 1] + '）';
-  } else {
-    el.innerHTML = '筛选条件：' + parts.join(' · ') + ' · 命中 <b>' + filtered.length + '</b> / ' + DATA.orders.length + ' 单';
-  }
-}
 
 function pager(id, pages, cur, go) {
   const box = document.getElementById(id);
@@ -372,14 +358,16 @@ function applyFilter() {
   if (s && e && s > e) filtered = [];
   ordPage = 1; chanPage = 1;
   deriveView(filtered);
-  buildKPI(); buildChanTable(); render(); drawCharts(); updateHint();
+  buildKPI(); buildChanTable(); render(); drawCharts();
 }
 
 function resetFilter() {
-  ['date-start', 'date-end', 'quick-sel'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('date-start').value = '';
+  document.getElementById('date-end').value = '';
   document.getElementById('l1-sel').value = '';
   buildL2Options();
-  applyFilter();
+  document.getElementById('quick-sel').value = QUICK_DEFAULT;
+  quickRange(QUICK_DEFAULT);
 }
 
 function ordCols() {
@@ -458,8 +446,7 @@ function trendOption(t) {
 }
 
 function gmvOption(t) {
-  const ser = [{ name: '成交金额', type: 'bar', data: t.map(x => x.gmv) }];
-  if (HAS('commission')) ser.push({ name: '佣金', type: 'bar', data: t.map(x => x.commission) });
+  const ser = [{ name: '佣金', type: 'bar', data: t.map(x => x.commission) }];
   return {
     tooltip: { trigger: 'axis' }, legend: {},
     grid: { left: 55, right: 20, top: 40, bottom: 30 },
@@ -468,9 +455,16 @@ function gmvOption(t) {
   };
 }
 
+function prepareCommissionCard() {
+  const el = document.getElementById('chart-gmv');
+  if (HAS('commission')) { el.innerHTML = ''; return true; }
+  el.innerHTML = '<div class="chart-empty">当前账号无佣金数据权限</div>';
+  return false;
+}
+
 function initCharts() {
   chartBox.trend = echarts.init(document.getElementById('chart-trend'));
-  chartBox.gmv = echarts.init(document.getElementById('chart-gmv'));
+  if (commChart) chartBox.gmv = echarts.init(document.getElementById('chart-gmv'));
   window.addEventListener('resize', () => { chartBox.trend.resize(); chartBox.gmv.resize(); });
   drawCharts();
 }
@@ -480,11 +474,11 @@ function drawCharts() {
   const t = viewTrend || [];
   if (!t.length) {
     chartBox.trend.setOption({ xAxis: { data: [] }, yAxis: [{}, {}], series: [] }, true);
-    chartBox.gmv.setOption({ xAxis: { data: [] }, series: [] }, true);
+    if (commChart && chartBox.gmv) chartBox.gmv.setOption({ xAxis: { data: [] }, series: [] }, true);
     return;
   }
   chartBox.trend.setOption(trendOption(t), true);
-  chartBox.gmv.setOption(gmvOption(t), true);
+  if (commChart && chartBox.gmv) chartBox.gmv.setOption(gmvOption(t), true);
 }
 
 (function restore() {
