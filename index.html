@@ -142,7 +142,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"c2cf038fafd4c47eee0d63b797c9f73c","i":300000},"a53d34e16eaa808a":{"s":"737877bf7a0cb03caac7767844fba444","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"cb858df56c9d94cf150fe4d36bc89a81","i":300000},"a53d34e16eaa808a":{"s":"9fe96b318329c05822120bc6328d7a9d","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
@@ -223,6 +223,7 @@ async function resume() {
       key, raw.slice(KDF.ivBytes));
     boot(JSON.parse(new TextDecoder().decode(plain)));
   } catch (e) {
+    if (window.console && console.warn) console.warn('[resume] 自动登录失败，回退到口令登录：', e && (e.message || e));
     try { sessionStorage.removeItem(SES_KEY); } catch (x) {}
     prefillAccount();
   }
