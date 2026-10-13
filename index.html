@@ -136,7 +136,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"f74e6002c56a42fc5edb47df752f1ac5","i":300000},"a53d34e16eaa808a":{"s":"e75b4ab1023fd023453cff85d86b9eca","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"dfdc1a1693053663c44f7e4fc227094b","i":300000},"a53d34e16eaa808a":{"s":"62a13604ad3b57097d1a76d8a5d0821b","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
@@ -372,8 +372,8 @@ function resetFilter() {
 
 function ordCols() {
   const c = [['date', '日期'], ['orderId', '订单编号']];
-  if (role === 'admin') c.push(['l1', '一级渠道'], ['l2', '二级渠道']);
-  else if (DATA.lv2Count) c.push(['l2', '二级渠道']);
+  if (role === 'admin') c.push(['l1', '一级渠道']);
+  c.push(['l2', '二级渠道']);
   c.push(['gmv', '成交金额'], ['subsidy', '补贴金额'], ['refund', '退款金额'], ['commission', '佣金金额']);
   return c.filter(x => (x[0] === 'date' || x[0] === 'orderId' || x[0] === 'l1' || x[0] === 'l2' || HAS(x[0])));
 }
