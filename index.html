@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>分销数据平台</title>
-<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js" defer></script>
+<link rel="preconnect" href="https://cdn.bootcdn.net" crossorigin>
+<link rel="dns-prefetch" href="//cdn.bootcdn.net">
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
 <style>
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -76,6 +78,9 @@ tfoot td { padding: 12px; }
 .fb-sep { color:#999; }
 .fb-hint { margin-top:10px;font-size:12px;color:#6b7280; }
 .chart-empty { display:flex;align-items:center;justify-content:center;height:300px;color:#9ca3af;font-size:13px; }
+.header { display:flex;align-items:center;justify-content:space-between; }
+.out-btn { padding:6px 14px;border:1px solid rgba(255,255,255,.28);border-radius:6px;background:transparent;color:#cbd5e1;font-size:12px;cursor:pointer; }
+.out-btn:hover { color:#fff;border-color:#fff; }
 .fb-off { display:none !important; }
 </style>
 </head>
@@ -95,6 +100,7 @@ tfoot td { padding: 12px; }
 <div id="dashboard-content">
   <div class="header">
     <h1>分销数据平台</h1>
+    <button class="out-btn" onclick="signOut()">退出登录</button>
   </div>
   <div class="container">
     <div class="ident" id="ident-bar"></div>
@@ -136,12 +142,16 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"dfdc1a1693053663c44f7e4fc227094b","i":300000},"a53d34e16eaa808a":{"s":"62a13604ad3b57097d1a76d8a5d0821b","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"c2cf038fafd4c47eee0d63b797c9f73c","i":300000},"a53d34e16eaa808a":{"s":"737877bf7a0cb03caac7767844fba444","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
 let allDates = [], chartBox = {}, commChart = false;
 const QUICK_DEFAULT = '30';
+const SES_KEY = 'fx-sess', ACCT_KEY = 'fx-acct', SESSION_HOURS = 12;
+const CHART_CDNS = ['https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js',
+                    'https://unpkg.com/echarts@5.5.0/dist/echarts.min.js'];
+let chartLoading = false, chartTry = 0, chartQueue = [];
 const UN = '未归属';
 const SENT = '__unassigned__';
 const l1of = o => (!o.l1 || o.l1 === SENT) ? UN : o.l1;
@@ -160,10 +170,62 @@ const unhex = s => Uint8Array.from((s.match(/../g) || []).map(x => parseInt(x, 1
 
 async function sha256Hex(str) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(str)))); }
 
-async function keyFor(account, password, salt, iterations) {
+async function keyFor(account, password, salt, iterations, extractable) {
   const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iterations, hash: KDF.hash },
-    base, { name: 'AES-GCM', length: KDF.keyBytes * 8 }, false, ['decrypt']);
+    base, { name: 'AES-GCM', length: KDF.keyBytes * 8 }, !!extractable, ['decrypt']);
+}
+
+async function keyFromHex(hexStr) {
+  return crypto.subtle.importKey('raw', unhex(hexStr), { name: 'AES-GCM' }, false, ['decrypt']);
+}
+
+async function rememberSession(k, key, account) {
+  try {
+    sessionStorage.setItem(ACCT_KEY, account);
+    const raw = await crypto.subtle.exportKey('raw', key);
+    sessionStorage.setItem(SES_KEY, JSON.stringify({ k: k, key: hex(new Uint8Array(raw)), at: Date.now() }));
+  } catch (e) {}
+}
+
+function readSession() {
+  try {
+    const rec = JSON.parse(sessionStorage.getItem(SES_KEY) || 'null');
+    if (!rec || !rec.k || !rec.key || !REGISTRY[rec.k]) return null;
+    if (Date.now() - rec.at > SESSION_HOURS * 3600 * 1000) { sessionStorage.removeItem(SES_KEY); return null; }
+    return rec;
+  } catch (e) { return null; }
+}
+
+function prefillAccount() {
+  const a = sessionStorage.getItem(ACCT_KEY);
+  if (!a) return;
+  document.getElementById('acct-input').value = a;
+  document.getElementById('pwd-input').focus();
+}
+
+function signOut() {
+  try { sessionStorage.removeItem(SES_KEY); } catch (e) {}
+  location.reload();
+}
+
+/* 同一标签页内免重登：用已派生的密钥直接解分区，不保存密码 */
+async function resume() {
+  if (!window.crypto || !crypto.subtle) { prefillAccount(); return; }
+  const rec = readSession();
+  if (!rec) { prefillAccount(); return; }
+  try {
+    const resp = await fetch('d/' + rec.k + '.bin', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('missing');
+    const raw = new Uint8Array(await resp.arrayBuffer());
+    const key = await keyFromHex(rec.key);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, KDF.ivBytes) },
+      key, raw.slice(KDF.ivBytes));
+    boot(JSON.parse(new TextDecoder().decode(plain)));
+  } catch (e) {
+    try { sessionStorage.removeItem(SES_KEY); } catch (x) {}
+    prefillAccount();
+  }
 }
 
 function fail(msg) {
@@ -189,15 +251,12 @@ async function unlock() {
     const resp = await fetch('d/' + k + '.bin', { cache: 'no-store' });
     if (!resp.ok) throw new Error('missing');
     const raw = new Uint8Array(await resp.arrayBuffer());
-    const key = await keyFor(account, password, unhex(rec.s), rec.i);
+    const key = await keyFor(account, password, unhex(rec.s), rec.i, true);
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, KDF.ivBytes) },
       key, raw.slice(KDF.ivBytes));
     payload = JSON.parse(new TextDecoder().decode(plain));
+    await rememberSession(k, key, account);
   } catch (err) { btn.disabled = false; fail('账号或密码错误'); return; }
-  try {
-    sessionStorage.setItem('fx-key', JSON.stringify({ k: k, at: Date.now() }));
-    sessionStorage.fxAcct = account;
-  } catch (e) {}
   boot(payload);
 }
 
@@ -210,7 +269,7 @@ function boot(payload) {
   chartBox = {};
   document.getElementById('size-sel').value = '20';
   commChart = prepareCommissionCard();
-  buildIdent(); buildFilterBar(); quickRange(QUICK_DEFAULT); waitForECharts();
+  buildIdent(); buildFilterBar(); quickRange(QUICK_DEFAULT); loadCharts(initCharts);
 }
 
 function buildIdent() {
@@ -288,7 +347,8 @@ function buildL2Options() {
   const sel = document.getElementById('chan-sel');
   const l1 = document.getElementById('l1-sel').value;
   const pool = role === 'admin' ? DATA.orders.filter(o => !l1 || l1of(o) === l1) : DATA.orders;
-  const names = uniq(pool.map(l2of)).filter(n => n !== '未分二级').sort();
+  const allL2 = uniq(pool.map(l2of)).sort();
+  const names = allL2.some(n => n !== '未分二级') ? allL2 : [];
   sel.innerHTML = '<option value="">全部二级渠道</option>' + names.map(n => '<option>' + n + '</option>').join('');
   sel.value = '';
   sel.classList.toggle('fb-off', names.length === 0);
@@ -427,13 +487,40 @@ function downloadChanCSV() {
   a.click();
 }
 
-function waitForECharts() {
-  if (typeof echarts === 'undefined') { setTimeout(waitForECharts, 200); return; }
-  initCharts();
+function chartFail() {
+  ['chart-trend', 'chart-gmv'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.innerHTML) el.innerHTML = '<div class="chart-empty">图表组件加载失败，数据不受影响，可刷新重试</div>';
+  });
+}
+
+/* 图表库只在解锁后加载；主源失败自动切备用源；表格与 KPI 不等图表 */
+function loadCharts(cb) {
+  if (typeof echarts !== 'undefined') { if (cb) cb(); return; }
+  if (cb) chartQueue.push(cb);
+  if (chartLoading) return;
+  chartLoading = true;
+  const sc = document.createElement('script');
+  sc.src = CHART_CDNS[chartTry];
+  sc.async = true;
+  sc.onload = function () {
+    chartLoading = false;
+    if (typeof echarts === 'undefined') { chartFail(); chartQueue = []; return; }
+    const q = chartQueue; chartQueue = [];
+    q.forEach(f => { try { f(); } catch (e) {} });
+  };
+  sc.onerror = function () {
+    chartLoading = false;
+    chartTry += 1;
+    if (chartTry < CHART_CDNS.length) { loadCharts(null); }
+    else { chartFail(); chartQueue = []; }
+  };
+  document.head.appendChild(sc);
 }
 
 function trendOption(t) {
   return {
+    animation: false,
     tooltip: { trigger: 'axis' }, legend: { data: ['成交笔数', '成交金额'] },
     grid: { left: 55, right: 55, top: 40, bottom: 30 },
     xAxis: { type: 'category', data: t.map(x => x.date) },
@@ -448,6 +535,7 @@ function trendOption(t) {
 function gmvOption(t) {
   const ser = [{ name: '佣金', type: 'bar', data: t.map(x => x.commission) }];
   return {
+    animation: false,
     tooltip: { trigger: 'axis' }, legend: {},
     grid: { left: 55, right: 20, top: 40, bottom: 30 },
     xAxis: { type: 'category', data: t.map(x => x.date), axisLabel: { rotate: 45 } },
@@ -481,15 +569,7 @@ function drawCharts() {
   if (commChart && chartBox.gmv) chartBox.gmv.setOption(gmvOption(t), true);
 }
 
-(function restore() {
-  try {
-    const s = JSON.parse(sessionStorage.getItem('fx-key') || 'null');
-    if (s && Date.now() - s.at < 30 * 60 * 1000 && sessionStorage.fxAcct) {
-      document.getElementById('acct-input').value = sessionStorage.fxAcct;
-      document.getElementById('pwd-input').focus();
-    }
-  } catch (e) {}
-})();
+resume();
 </script>
 </body>
 </html>
