@@ -130,6 +130,15 @@ tfoot td { padding: 12px; }
       <div class="pager" id="chan-pager"></div>
     </div>
     <div class="table-card">
+      <div class="table-top"><div class="section-title" style="margin:0">分天数据</div>
+        <div><span class="tag" id="daily-count"></span> <button class="btn" onclick="downloadDailyCSV()">导出</button></div></div>
+      <div class="toolbar"><span>每页</span><select id="daily-size" onchange="changeDailySize(this.value)">
+        <option>7</option><option>15</option><option>30</option><option>50</option></select>
+        <span class="fb-hint" style="margin:0">按 日期 × 渠道 × 店铺 × 商品 汇总；成交笔数为该组合去重主单数，一个主单含多商品时会计入多行</span></div>
+      <table id="daily-table"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+      <div class="pager" id="daily-pager"></div>
+    </div>
+    <div class="table-card" id="ord-card">
       <div class="table-top"><div class="section-title" style="margin:0">订单明细</div>
         <div class="toolbar"><button class="btn" onclick="downloadCSV()">导出 CSV</button></div></div>
       <div class="toolbar"><span>每页</span><select id="size-sel" onchange="changeSize(this.value)">
@@ -142,9 +151,10 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"526b2b63cf9beff3bba8b4d37662f235","i":300000},"a53d34e16eaa808a":{"s":"7e20d6b49104e97b3d30a3028c1d7d93","i":300000},"17975b9fb6770666":{"s":"6b65bf11a8e691407a5515c53a28f56e","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"01f1b80fe15da022c4c22bb8a3a86a05","i":300000},"a53d34e16eaa808a":{"s":"2c2235c20f294a9b336362f2acf71165","i":300000},"17975b9fb6770666":{"s":"4e36c383f2fe03311a92781cec6e837a","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
+let dailyPage = 1, dailySize = 7, dailyRows = [];
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
 let allDates = [], chartBox = {}, commChart = false;
 const QUICK_DEFAULT = '30';
@@ -161,7 +171,11 @@ const uniq = a => [...new Set(a)];
 const M = ['gmv', 'subsidy', 'refund', 'commission'];
 const enc = new TextEncoder();
 const HAS = f => FIELDS.indexOf(f) >= 0;
-const money = n => '\u00a5' + (Number(n) || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/* 金额一律整数 + 千分位显示（不显示小数位）；导出的 CSV 保留 2 位小数以免丢精度 */
+const money = n => '\u00a5' + Math.round(Number(n) || 0).toLocaleString('zh-CN');
+const intfmt = n => Math.round(Number(n) || 0).toLocaleString('zh-CN');
+const pct = v => (v == null || !isFinite(v)) ? '—'
+  : (Math.round(v * 10000) / 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '%';
 const r2 = n => { const v = Number(n) || 0, a = Math.abs(v);
   if (a >= 1e15) return Math.round(v * 100) / 100;
   return (v < 0 ? -1 : 1) * Math.round(parseFloat(a.toFixed(10) + 'e2')) / 100; };
@@ -265,7 +279,9 @@ function boot(payload) {
   DATA = payload; FIELDS = payload.fields || []; role = payload.meta.role;
   document.getElementById('password-gate').style.display = 'none';
   document.getElementById('dashboard-content').style.display = 'block';
-  ordPage = 1; ordSize = 20; chanPage = 1;
+  ordPage = 1; ordSize = 20; chanPage = 1; dailyPage = 1;
+  /* 渠道账号不展示订单明细（明细仍用于按日期/渠道实时汇总） */
+  document.getElementById('ord-card').style.display = role === 'admin' ? '' : 'none';
   Object.keys(chartBox).forEach(k => { try { chartBox[k].dispose(); } catch (e) {} });
   chartBox = {};
   document.getElementById('size-sel').value = '20';
@@ -283,11 +299,25 @@ function buildIdent() {
 function buildKPI() {
   const s = viewSummary, cards = [['成交笔数', (s.orders || 0).toLocaleString() + ' 笔']];
   if (HAS('gmv')) cards.push(['成交金额', money(s.gmv)]);
-  if (HAS('subsidy')) cards.push(['补贴金额', money(s.subsidy)]);
+  if (HAS('subsidy')) cards.push(['电淘补贴金额', money(s.subsidy)]);
   if (HAS('refund')) cards.push(['退款金额', money(s.refund)]);
-  if (HAS('commission')) cards.push(['佣金金额', money(s.commission)]);
+  if (HAS('commission')) cards.push(['预估佣金金额', money(s.commission)]);
+  if (HAS('commission')) {
+    const r = viewRate();
+    cards.push(['佣金比例', r ? pct(r.v) + (r.mixed ? ' <span class="warn">混合</span>' : '') : '—']);
+  }
   document.getElementById('kpi-row').innerHTML = cards.map(c =>
     '<div class="kpi-card"><div class="kpi-label">' + c[0] + '</div><div class="kpi-value blue">' + c[1] + '</div></div>').join('');
+}
+
+/* 佣金比例：区间内只有一个比例就直接显示，混了多档则给按计佣基数加权的有效比例 */
+function viewRate() {
+  if (!HAS('commission')) return null;
+  const rs = uniq(dailyRows.map(r => r.rate).filter(v => typeof v === 'number'));
+  const base = (viewSummary.gmv || 0) - (viewSummary.subsidy || 0) - (viewSummary.refund || 0);
+  if (rs.length === 1) return { v: rs[0], mixed: false };
+  if (base > 0.005) return { v: (viewSummary.commission || 0) / base, mixed: rs.length > 1 };
+  return rs.length ? { v: rs[0], mixed: false } : null;
 }
 
 function chanCols() {
@@ -295,9 +325,9 @@ function chanCols() {
   if (role === 'admin') c.push(['lv2', '二级数', 'right']);
   c.push(['orders', '成交笔数', 'right']);
   if (HAS('gmv')) c.push(['gmv', '成交金额', 'right']);
-  if (HAS('subsidy')) c.push(['subsidy', '补贴金额', 'right']);
+  if (HAS('subsidy')) c.push(['subsidy', '电淘补贴金额', 'right']);
   if (HAS('refund')) c.push(['refund', '退款金额', 'right']);
-  if (HAS('commission')) c.push(['commission', '佣金金额', 'right']);
+  if (HAS('commission')) c.push(['commission', '预估佣金金额', 'right']);
   return c;
 }
 
@@ -311,7 +341,7 @@ function buildChanTable() {
   const pages = Math.max(1, Math.ceil(all.length / chanSize));
   if (chanPage > pages) chanPage = 1;
   const slice = all.slice((chanPage - 1) * chanSize, chanPage * chanSize);
-  const num = v => (Number(v) || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num = intfmt;
   document.querySelector('#chan-table tbody').innerHTML = slice.map(row => '<tr>' + cols.map(c => {
     const v = row[c[0]];
     if (c[0] === 'name') return '<td class="left bold">' + v + '</td>';
@@ -378,6 +408,7 @@ function deriveView(list) {
   viewSummary = { orders: list.length };
   viewTrend = [];
   chanRows = [];
+  dailyRows = [];
   M.forEach(f => { if (HAS(f)) viewSummary[f] = sumOf(list, f); });
   const daily = {}, groups = {};
   list.forEach(o => { (daily[o.date.slice(5)] = daily[o.date.slice(5)] || []).push(o); });
@@ -399,6 +430,31 @@ function deriveView(list) {
   }).sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
 }
 
+/* 分天数据：后端已按 日期×一级×二级×店铺×商品 聚合，这里按当前身份的渠道口径再收一次 */
+function deriveDaily(list) {
+  const admin = role === 'admin', g = {};
+  list.forEach(r => {
+    const n = admin ? l1of(r) : l2of(r);
+    const k = r.date + '|' + n + '|' + (r.shop || '') + '|' + (r[dailyCol()] || '');
+    const row = g[k] || (g[k] = { date: r.date, chan: n, shop: r.shop || '', item: r[dailyCol()] || '',
+                                  name: r.item || '', orders: 0, rates: [], _r: {},
+                                  gmv: 0, subsidy: 0, refund: 0, commission: 0 });
+    row.orders += Number(r.orders) || 0;
+    M.forEach(f => { if (HAS(f)) row[f] += Number(r[f]) || 0; });
+    if (typeof r.rate === 'number') row.rates.push(r.rate);
+  });
+  dailyRows = Object.keys(g).map(k => {
+    const row = g[k], base = row.gmv - row.subsidy - row.refund;
+    const rs = uniq(row.rates);
+    row.rate = rs.length === 1 ? rs[0] : (base > 0.005 ? row.commission / base : (rs.length ? rs[0] : null));
+    delete row.rates;
+    M.forEach(f => { if (HAS(f)) row[f] = Math.round(row[f] * 100) / 100; });
+    return row;
+  }).sort((a, b) => a.date < b.date ? 1 : (a.date > b.date ? -1 : (b.gmv - a.gmv)));
+}
+
+function dailyCol() { return 'item_id'; }
+
 
 function pager(id, pages, cur, go) {
   const box = document.getElementById(id);
@@ -414,12 +470,13 @@ function pager(id, pages, cur, go) {
 function applyFilter() {
   const s = document.getElementById('date-start').value, e = document.getElementById('date-end').value;
   const l1 = document.getElementById('l1-sel').value, l2 = document.getElementById('chan-sel').value;
-  filtered = DATA.orders.filter(o => (!s || o.date >= s) && (!e || o.date <= e)
-    && (!l1 || l1of(o) === l1) && (!l2 || l2of(o) === l2));
+  const inRange = x => (!s || x.date >= s) && (!e || x.date <= e) && (!l1 || l1of(x) === l1) && (!l2 || l2of(x) === l2);
+  filtered = DATA.orders.filter(inRange);
   if (s && e && s > e) filtered = [];
-  ordPage = 1; chanPage = 1;
+  ordPage = 1; chanPage = 1; dailyPage = 1;
   deriveView(filtered);
-  buildKPI(); buildChanTable(); render(); drawCharts();
+  deriveDaily((DATA.daily || []).filter(inRange));
+  buildKPI(); buildChanTable(); buildDailyTable(); render(); drawCharts();
 }
 
 function resetFilter() {
@@ -435,12 +492,12 @@ function ordCols() {
   const c = [['date', '日期'], ['orderId', '订单编号']];
   if (role === 'admin') c.push(['l1', '一级渠道']);
   c.push(['l2', '二级渠道']);
-  c.push(['gmv', '成交金额'], ['subsidy', '补贴金额'], ['refund', '退款金额'], ['commission', '佣金金额']);
+  c.push(['gmv', '成交金额'], ['subsidy', '电淘补贴金额'], ['refund', '退款金额'], ['commission', '预估佣金金额']);
   return c.filter(x => (x[0] === 'date' || x[0] === 'orderId' || x[0] === 'l1' || x[0] === 'l2' || HAS(x[0])));
 }
 
 function render() {
-  if (!DATA) return;
+  if (!DATA || role !== 'admin') return;
   const cols = ordCols();
   document.querySelector('#ord-table thead').innerHTML = '<tr>' + cols.map(c => '<th class="left">' + c[1] + '</th>').join('') + '</tr>';
   const rows = filtered.slice((ordPage - 1) * ordSize, ordPage * ordSize);
@@ -487,6 +544,63 @@ function downloadChanCSV() {
   a.download = DATA.meta.label + '_渠道汇总_' + fileTag() + '.csv';
   a.click();
 }
+
+function dailyCols() {
+  const c = [['date', '日期', 'left'], ['chan', '渠道', 'left'], ['shop', '店铺名称', 'left'],
+             ['item', '商品ID', 'left'], ['orders', '成交笔数', 'right']];
+  if (HAS('gmv')) c.push(['gmv', '成交金额', 'right']);
+  if (HAS('subsidy')) c.push(['subsidy', '电淘补贴金额', 'right']);
+  if (HAS('refund')) c.push(['refund', '退款金额', 'right']);
+  if (HAS('commission')) c.push(['rate', '佣金比例', 'right'], ['commission', '预估佣金金额', 'right']);
+  return c;
+}
+
+function dailyCell(c, row) {
+  if (c[0] === 'item') return '<td class="left" title="' + (row.name || '').replace(/"/g, '&quot;') + '">'
+    + (row.item || '—') + '</td>';
+  if (c[0] === 'date' || c[0] === 'chan' || c[0] === 'shop') return '<td class="left">' + (row[c[0]] || '—') + '</td>';
+  if (c[0] === 'orders') return '<td class="right">' + (row.orders || 0) + '</td>';
+  if (c[0] === 'rate') return '<td class="right">' + pct(row.rate) + '</td>';
+  return '<td class="right">' + intfmt(row[c[0]]) + '</td>';
+}
+
+function buildDailyTable() {
+  const cols = dailyCols(), all = dailyRows;
+  document.querySelector('#daily-table thead').innerHTML = '<tr>' + cols.map(c =>
+    '<th class="' + c[2] + '">' + c[1] + '</th>').join('') + '</tr>';
+  const pages = Math.max(1, Math.ceil(all.length / dailySize));
+  if (dailyPage > pages) dailyPage = 1;
+  const slice = all.slice((dailyPage - 1) * dailySize, dailyPage * dailySize);
+  document.querySelector('#daily-table tbody').innerHTML = slice.map(row => '<tr>' + cols.map(c =>
+    dailyCell(c, row)).join('') + '</tr>').join('')
+    || '<tr><td colspan="' + cols.length + '" class="left">暂无数据</td></tr>';
+  const rt = viewRate();
+  document.querySelector('#daily-table tfoot').innerHTML = '<tr>' + cols.map(c => {
+    if (c[0] === 'date') return '<td class="left">合计</td>';
+    if (c[0] === 'chan' || c[0] === 'shop' || c[0] === 'item') return '<td class="left"></td>';
+    if (c[0] === 'orders') return '<td class="right">' + (viewSummary.orders || 0) + '</td>';
+    if (c[0] === 'rate') return '<td class="right">' + pct(rt && rt.v) + '</td>';
+    return '<td class="right">' + intfmt(viewSummary[c[0]]) + '</td>';
+  }).join('') + '</tr>';
+  document.getElementById('daily-count').textContent = all.length + ' 行';
+  pager('daily-pager', pages, dailyPage, p => { dailyPage = p; buildDailyTable(); });
+}
+
+function changeDailySize(v) { dailySize = Number(v) || 7; dailyPage = 1; buildDailyTable(); }
+
+function downloadDailyCSV() {
+  const cols = dailyCols(), rt = viewRate();
+  const lines = [cols.map(c => csvCell(c[1])).join(',')];
+  dailyRows.forEach(row => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(row.rate) : row[c[0]])).join(',')));
+  lines.push(cols.map(c => csvCell(c[0] === 'date' ? '合计'
+    : (c[0] === 'orders' ? (viewSummary.orders || 0) : (c[0] === 'rate' ? pct(rt && rt.v)
+    : (HAS(c[0]) ? r2(viewSummary[c[0]]) : ''))))).join(','));
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = DATA.meta.label + '_分天数据_' + fileTag() + '.csv';
+  a.click();
+ }
 
 function chartFail() {
   ['chart-trend', 'chart-gmv'].forEach(id => {
