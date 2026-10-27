@@ -84,8 +84,12 @@ tfoot td { padding: 12px; }
 .out-btn { padding:6px 14px;border:1px solid rgba(255,255,255,.28);border-radius:6px;background:transparent;color:#cbd5e1;font-size:12px;cursor:pointer; }
 .out-btn:hover { color:#fff;border-color:#fff; }
 .fb-off { display:none !important; }
-.th-tip { color:#c0c7d1;font-size:11px;margin-left:2px;cursor:help; }
-th[title] { cursor:help; }
+th[data-tip], .kpi-card[data-tip] { cursor:help; }
+.th-tip { display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;border-radius:50%;
+  background:#dbeafe;color:#1d4ed8;font-size:10px;font-style:normal;font-weight:600;margin-left:3px;cursor:help; }
+.kpi-card .th-tip { vertical-align:middle; }
+#tipbox { position:fixed;z-index:10000;display:none;max-width:330px;background:#1f2937;color:#fff;font-size:12px;
+  line-height:1.75;font-weight:400;padding:10px 12px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none; }
 .note { font-size:12px;color:#6b7280;line-height:1.7;margin-top:10px; }
 .note b { color:#374151; }
 .kpi-card[title] { cursor:help; }
@@ -125,7 +129,7 @@ th[title] { cursor:help; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=（成交金额−电淘补贴金额）×佣金比例，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -156,13 +160,13 @@ th[title] { cursor:help; }
         <span id="ord-count"></span></div>
       <table id="ord-table"><thead></thead><tbody></tbody></table>
       <div class="pager" id="ord-pager"></div>
-      <div class="note">一行一个<b>主订单</b>（含该主订单下全部子订单的金额合计）。仅管理员可见。金额口径同核心指标，退款为当日退款。</div>
+      <div class="note">一行一个<b>主订单</b>（含该主订单下全部子订单的金额合计）。管理员可见全部渠道，渠道账号只看到自己渠道的订单。金额口径同核心指标，退款为当日退款，佣金为<b>实付金额×佣金比例</b>。</div>
     </div>
   </div>
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"d1e2ad0a0033c30819522dfd2e3c49d2","i":300000},"a53d34e16eaa808a":{"s":"083e8f0dd3a349a8a0abf4e961bfc5b0","i":300000},"17975b9fb6770666":{"s":"3fa1db5e3d0bf99dde6a9ad792a13554","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"d1ba5e8191da25d6f6db921ca3e45669","i":300000},"a53d34e16eaa808a":{"s":"b07ef3ba4bc8c63948f8860c8e927680","i":300000},"17975b9fb6770666":{"s":"590cecf48c6fd2f54d7c31c2038bbbf3","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -211,11 +215,13 @@ const TIPS = {
   '电淘补贴金额': '电淘渠道专项补贴合计（按子订单累加），计佣前先行扣除',
   '退款金额': '当日退款金额，不含历史与后续退款；最终退款以运营事后上传的退款状态为准',
   '实付金额': '实付金额 = 成交金额 - 电淘补贴金额 - 退款金额。当日退款可能大于成交，此时为 0 或负数',
-  '佣金比例': '计佣比例。新口径取钉钉配置表的比例快照；老数据按 佣金/(成交-补贴) 反推。所选区间混用多档比例时，显示按计佣基数加权后的有效比例',
-  '预估佣金金额': '预估佣金 =（成交金额 - 电淘补贴金额）× 佣金比例，仅支付成功（order_status 2/6）计佣，退款单计 0。最终佣金待退款状态回传后重算'
+  '佣金比例': '计佣比例。新口径取钉钉配置表的比例快照；老数据按 佣金/(成交-补贴) 反推。所选区间混用多档比例时，显示按计佣基数加权后的有效比例；订单明细行为该笔主订单的比例',
+  '预估佣金金额': '预估佣金 = 实付金额 × 佣金比例（实付金额 = 成交金额 - 电淘补贴金额 - 当日退款金额）。实付为负（当日退款超过成交）按 0 计、不倒扣；最终佣金待退款状态回传后重算'
 };
-const tip = c => '<th class="' + (c[2] || 'left') + '" title="' + (TIPS[c[1]] || '') + '">'
-  + c[1] + '<span class="th-tip">i</span></th>';
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+/* 不用原生 title（要悬停 1 秒、部分浏览器/缩放状态下不出），改成自绘气泡，鼠标移上即出 */
+const tip = c => '<th class="' + (c[2] || 'left') + '" data-tip="' + esc(TIPS[c[1]] || '') + '">'
+  + c[1] + (TIPS[c[1]] ? '<span class="th-tip">i</span>' : '') + '</th>';
 const r2 = n => { const v = Number(n) || 0, a = Math.abs(v);
   if (a >= 1e15) return Math.round(v * 100) / 100;
   return (v < 0 ? -1 : 1) * Math.round(parseFloat(a.toFixed(10) + 'e2')) / 100; };
@@ -320,8 +326,8 @@ function boot(payload) {
   document.getElementById('password-gate').style.display = 'none';
   document.getElementById('dashboard-content').style.display = 'block';
   ordPage = 1; ordSize = 20; chanPage = 1; dailyPage = 1;
-  /* 渠道账号不展示订单明细（明细仍用于按日期/渠道实时汇总） */
-  document.getElementById('ord-card').style.display = role === 'admin' ? '' : 'none';
+  /* 订单明细对管理员和渠道账号都展示：明细数据在后端已按身份裁剪，渠道账号只拿到自己渠道的行 */
+  document.getElementById('ord-card').style.display = '';
   Object.keys(chartBox).forEach(k => { try { chartBox[k].dispose(); } catch (e) {} });
   chartBox = {};
   document.getElementById('size-sel').value = '20';
@@ -342,10 +348,11 @@ function buildKPI() {
   if (HAS('subsidy')) cards.push(['电淘补贴金额', money(s.subsidy)]);
   if (HAS('refund')) cards.push(['退款金额', money(s.refund)]);
   if (canNet()) cards.push(['实付金额', money(netDisp(s))]);
-  if (HAS('commission')) cards.push(['预估佣金金额', money(s.commission)], ['佣金比例', pct(viewRate())]);
+  if (HAS('commission')) cards.push(['佣金比例', pct(viewRate())], ['预估佣金金额', money(s.commission)]);
   document.getElementById('kpi-row').innerHTML = cards.map(c =>
-    '<div class="kpi-card" title="' + (TIPS[c[0]] || '') + '"><div class="kpi-label">' + c[0]
-    + '<span class="th-tip">i</span></div><div class="kpi-value blue">' + c[1] + '</div></div>').join('');
+    '<div class="kpi-card" data-tip="' + esc(TIPS[c[0]] || '') + '"><div class="kpi-label">' + c[0]
+    + (TIPS[c[0]] ? '<span class="th-tip">i</span>' : '') + '</div><div class="kpi-value blue">' + c[1]
+    + '</div></div>').join('');
 }
 
 /* 佣金比例：区间内只有一个比例就直接显示；混了多档则给按计佣基数加权的有效比例（不再标注「混合」） */
@@ -558,19 +565,27 @@ function ordCols() {
   if (role === 'admin') c.push(['l1', '一级渠道']);
   c.push(['l2', '二级渠道'], ['gmv', '成交金额'], ['subsidy', '电淘补贴金额'], ['refund', '退款金额']);
   if (canNet()) c.push(['net', '实付金额']);
+  if (HAS('commission')) c.push(['rate', '佣金比例']);
   c.push(['commission', '预估佣金金额']);
   return c.filter(x => (x[0] === 'date' || x[0] === 'orderId' || x[0] === 'l1' || x[0] === 'l2'
-    || x[0] === 'net' || HAS(x[0])));
+    || x[0] === 'net' || x[0] === 'rate' || HAS(x[0])));
+}
+
+/* 明细单元格：实付金额用可复现取整口径，佣金比例显示百分比，其余数字按金额显示 */
+function ordCell(o, id) {
+  const v = ordVal(o, id);
+  if (id === 'net') return money(netDisp(o));
+  if (id === 'rate') return pct(v);
+  return typeof v === 'number' ? money(v) : (v || '—');
 }
 
 function render() {
-  if (!DATA || role !== 'admin') return;
+  if (!DATA) return;
   const cols = ordCols();
   document.querySelector('#ord-table thead').innerHTML = '<tr>' + cols.map(c => tip(c)).join('') + '</tr>';
   const rows = filtered.slice((ordPage - 1) * ordSize, ordPage * ordSize);
   document.querySelector('#ord-table tbody').innerHTML = rows.map(o => '<tr>' + cols.map(c =>
-    '<td>' + (c[0] === 'net' ? money(netDisp(o))
-      : (typeof ordVal(o, c[0]) === 'number' ? money(ordVal(o, c[0])) : (ordVal(o, c[0]) || '—'))) + '</td>').join('') + '</tr>').join('')
+    '<td>' + ordCell(o, c[0]) + '</td>').join('') + '</tr>').join('')
     || '<tr><td colspan="' + cols.length + '">暂无数据</td></tr>';
   const pages = Math.max(1, Math.ceil(filtered.length / ordSize));
   document.getElementById('ord-count').textContent = '共 ' + filtered.length + ' 条';
@@ -590,11 +605,13 @@ function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n]/.test
 function downloadCSV() {
   const cols = ordCols(), name = DATA.meta.label;
   const lines = [cols.map(c => csvCell(c[1])).join(',')];
-  filtered.forEach(o => lines.push(cols.map(c => csvCell(ordVal(o, c[0]))).join(',')));
+  filtered.forEach(o => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(ordVal(o, c[0]))
+    : ordVal(o, c[0]))).join(',')));
   const t = {};
   cols.forEach(c => { if (['gmv', 'subsidy', 'refund', 'net', 'commission'].indexOf(c[0]) >= 0)
     t[c[0]] = r2(filtered.reduce((a, o) => a + (Number(ordVal(o, c[0])) || 0), 0)); });
-  lines.push(cols.map(c => csvCell(c[0] === 'date' ? '合计' : (t[c[0]] != null ? t[c[0]] : ''))).join(','));
+  lines.push(cols.map(c => csvCell(c[0] === 'date' ? '合计'
+    : (c[0] === 'rate' ? pct(viewRate()) : (t[c[0]] != null ? t[c[0]] : '')))).join(','));
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -631,7 +648,7 @@ function dailyCols() {
 }
 
 function dailyCell(c, row) {
-  if (c[0] === 'item') return '<td class="left" title="' + (row.name || '').replace(/"/g, '&quot;') + '">'
+  if (c[0] === 'item') return '<td class="left" data-tip="' + esc(row.name || '（该笔成交无商品维度明细）') + '">'
     + (row.item || '—') + '</td>';
   if (c[0] === 'date' || c[0] === 'chan' || c[0] === 'shop') return '<td class="left">' + (row[c[0]] || '—') + '</td>';
   if (c[0] === 'orders') return '<td class="right">' + (row.orders || 0) + '</td>';
@@ -713,6 +730,34 @@ function loadCharts(cb) {
   };
   document.head.appendChild(sc);
 }
+
+/* ── 字段口径气泡提示（自绘，鼠标移上即出，不依赖原生 title）── */
+let tipBox = null, tipFor = null;
+function showTip(el) {
+  if (el === tipFor && tipBox && tipBox.style.display === 'block') return;
+  if (!tipBox) { tipBox = document.createElement('div'); tipBox.id = 'tipbox'; document.body.appendChild(tipBox); }
+  tipBox.textContent = el.getAttribute('data-tip') || '';
+  tipBox.style.display = 'block';
+  tipFor = el;
+  const r = el.getBoundingClientRect(), w = tipBox.offsetWidth, h = tipBox.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2;
+  x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+  let y = r.bottom + 8;
+  if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 8);
+  tipBox.style.left = x + 'px';
+  tipBox.style.top = y + 'px';
+}
+function hideTip() { if (tipBox) tipBox.style.display = 'none'; tipFor = null; }
+document.addEventListener('mouseover', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (el && el.getAttribute('data-tip')) showTip(el); else hideTip();
+});
+document.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if (!el || !el.getAttribute('data-tip')) hideTip();
+});
+window.addEventListener('scroll', hideTip, true);
+window.addEventListener('resize', hideTip);
 
 function trendOption(t) {
   return {
