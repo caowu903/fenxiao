@@ -49,6 +49,7 @@ tfoot td { padding: 12px; }
 .rank-num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; }
 .rank-top { background: #3b82f6; color: #fff; }
 .rank-normal { background: #e5e7eb; color: #666; }
+.sp-mark { color: #e6a23c; font-weight: 700; cursor: help; margin-left: 3px; }
 
 .gateway { position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);display:flex;align-items:center;justify-content:center;z-index:9999; }
 .gw-card { background:#fff;border-radius:16px;padding:40px 48px;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-width:380px;width:90%; }
@@ -160,13 +161,13 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
         <span id="ord-count"></span></div>
       <table id="ord-table"><thead></thead><tbody></tbody></table>
       <div class="pager" id="ord-pager"></div>
-      <div class="note">一行一个<b>主订单</b>（含该主订单下全部子订单的金额合计）。管理员可见全部渠道，渠道账号只看到自己渠道的订单。金额口径同核心指标，退款为当日退款，佣金为<b>实付金额×佣金比例</b>。</div>
+      <div class="note">一行一个<b>主订单</b>（含该主订单下全部子订单的金额合计）。管理员可见全部渠道，渠道账号只看到自己渠道的订单。金额口径同核心指标，退款为当日退款，佣金为<b>实付金额×佣金比例</b>。<span id="sp-note"></span></div>
     </div>
   </div>
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"d1ba5e8191da25d6f6db921ca3e45669","i":300000},"a53d34e16eaa808a":{"s":"b07ef3ba4bc8c63948f8860c8e927680","i":300000},"17975b9fb6770666":{"s":"590cecf48c6fd2f54d7c31c2038bbbf3","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"bfa8d447ddbcb8a5bca83b2965ddc95e","i":300000},"a53d34e16eaa808a":{"s":"2709369630fe534ee1f5a5e24068d40a","i":300000},"17975b9fb6770666":{"s":"daaac4ed31351df88ee9b4d72f8b4cf4","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -213,7 +214,7 @@ const TIPS = {
   '二级数': '该一级渠道下出现过的二级渠道个数',
   '成交金额': '成交金额（GMV）合计，含后续发生退款的订单',
   '电淘补贴金额': '电淘渠道专项补贴合计（按子订单累加），计佣前先行扣除',
-  '退款金额': '当日退款金额，不含历史与后续退款；最终退款以运营事后上传的退款状态为准',
+  '退款金额': '当日退款金额，不含历史与后续退款；最终退款以运营事后上传的退款状态为准。订单明细中带 † 的是人工标记已全额退款（退款金额=成交金额，该单佣金按实付归零）',
   '实付金额': '实付金额 = 成交金额 - 电淘补贴金额 - 退款金额。当日退款可能大于成交，此时为 0 或负数',
   '佣金比例': '计佣比例。新口径取钉钉配置表的比例快照；老数据按 佣金/(成交-补贴) 反推。所选区间混用多档比例时，显示按计佣基数加权后的有效比例；订单明细行为该笔主订单的比例',
   '预估佣金金额': '预估佣金 = 实付金额 × 佣金比例（实付金额 = 成交金额 - 电淘补贴金额 - 当日退款金额）。实付为负（当日退款超过成交）按 0 计、不倒扣；最终佣金待退款状态回传后重算'
@@ -576,11 +577,16 @@ function ordCell(o, id) {
   const v = ordVal(o, id);
   if (id === 'net') return money(netDisp(o));
   if (id === 'rate') return pct(v);
+  if (id === 'refund' && o.sp) return money(v) + '<span class="sp-mark" data-tip="人工标记：该主订单已全额退款（退款金额=成交金额），佣金按实付归零">†</span>';
   return typeof v === 'number' ? money(v) : (v || '—');
 }
 
 function render() {
   if (!DATA) return;
+  const spEl = document.getElementById('sp-note');
+  if (spEl) spEl.textContent = DATA.meta.spCount
+    ? '本表有 ' + DATA.meta.spCount + ' 单为人工标记「已全额退款」（退款金额=成交金额、佣金归零，退款列带 †），由 special_refunds.txt 清单维护。'
+    : '';
   const cols = ordCols();
   document.querySelector('#ord-table thead').innerHTML = '<tr>' + cols.map(c => tip(c)).join('') + '</tr>';
   const rows = filtered.slice((ordPage - 1) * ordSize, ordPage * ordSize);
