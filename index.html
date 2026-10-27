@@ -20,10 +20,11 @@ body { background: #f7f8fc; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
 .section-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; padding-left: 12px; border-left: 4px solid #3b82f6; }
-.kpi-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-.kpi-card { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; flex: 1; min-width: 160px; }
+/* 7 个指标卡一行放得下；放不下时按等宽换行，不会出现「第二行一张卡被拉满、右边大片空白」 */
+.kpi-row { display: grid; gap: 14px; margin-bottom: 22px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+.kpi-card { background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; min-width: 0; }
 .kpi-label { font-size: 13px; color: #8c8c8c; margin-bottom: 8px; }
-.kpi-value { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; }
 
 .charts-row { display: flex; gap: 16px; margin-bottom: 28px; }
 .chart-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; }
@@ -60,7 +61,8 @@ tfoot td { padding: 12px; }
 .gw-err { color:#e94560;font-size:13px;margin-top:10px;text-align:center;display:none; }
 .gw-lock { text-align:center;font-size:12px;color:#bbb;margin-top:16px; }
 #dashboard-content { display:none; }
-.ident { background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px; }
+.ident { background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:15px;line-height:1.6;color:#1e40af;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px; }
+.ident b { font-size:17px; }
 .toolbar { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:13px;color:#666; }
 .toolbar select,.toolbar input { padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;outline:none; }
 .btn { padding:7px 14px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;font-size:13px;cursor:pointer;color:#333; }
@@ -160,13 +162,13 @@ th[title] { cursor:help; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"837d3e1bc68d49002a17c32fb5f36838","i":300000},"a53d34e16eaa808a":{"s":"ad2f7d787b954f5c33a530c65291ce15","i":300000},"17975b9fb6770666":{"s":"dfeb363abf7966fe78f0e08bcfe7d8ad","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"d1e2ad0a0033c30819522dfd2e3c49d2","i":300000},"a53d34e16eaa808a":{"s":"083e8f0dd3a349a8a0abf4e961bfc5b0","i":300000},"17975b9fb6770666":{"s":"3fa1db5e3d0bf99dde6a9ad792a13554","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
 let filtered = [], chanRows = [], viewSummary = {}, viewTrend = [];
 let allDates = [], chartBox = {}, commChart = false;
-const QUICK_DEFAULT = '30';
+const QUICK_DEFAULT = '7';
 const SES_KEY = 'fx-sess', ACCT_KEY = 'fx-acct', SESSION_HOURS = 12;
 const CHART_CDNS = ['https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js',
                     'https://unpkg.com/echarts@5.5.0/dist/echarts.min.js'];
@@ -183,8 +185,8 @@ const HAS = f => FIELDS.indexOf(f) >= 0;
 /* 金额一律整数 + 千分位显示（不显示小数位）；导出的 CSV 保留 2 位小数以免丢精度 */
 const money = n => '\u00a5' + (Math.round(Number(n) || 0) || 0).toLocaleString('zh-CN');
 const intfmt = n => (Math.round(Number(n) || 0) || 0).toLocaleString('zh-CN');
-const pct = v => (v == null || !isFinite(v)) ? '—'
-  : (Math.round(v * 10000) / 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '%';
+/* 百分比统一保留一位小数，如 50.5% */
+const pct = v => (v == null || !isFinite(v)) ? '—' : (Math.round(v * 1000) / 10).toFixed(1) + '%';
 
 /* 实付金额 = 成交金额 - 电淘补贴金额 - 退款金额。
    netOf  用于合计/导出（2 位小数，精确）；
@@ -364,7 +366,7 @@ function chanCols() {
   if (HAS('subsidy')) c.push(['subsidy', '电淘补贴金额', 'right']);
   if (HAS('refund')) c.push(['refund', '退款金额', 'right']);
   if (canNet()) c.push(['net', '实付金额', 'right']);
-  if (HAS('commission')) c.push(['commission', '预估佣金金额', 'right']);
+  if (HAS('commission')) c.push(['rate', '佣金比例', 'right'], ['commission', '预估佣金金额', 'right']);
   return c;
 }
 
@@ -382,16 +384,21 @@ function buildChanTable() {
   const num = intfmt;
   document.querySelector('#chan-table tbody').innerHTML = slice.map(row => '<tr>' + cols.map(c => {
     if (c[0] === 'net') return '<td class="right">' + intfmt(netDisp(row)) + '</td>';
+    if (c[0] === 'rate') return '<td class="right">' + pct(row.rate) + '</td>';
     const v = cellVal(row, c[0]);
     if (c[0] === 'name') return '<td class="left bold">' + v + '</td>';
     if (c[0] === 'orders' || c[0] === 'lv2') return '<td class="right">' + (v || 0) + '</td>';
     return '<td class="right">' + num(v) + '</td>';
   }).join('') + '</tr>').join('') || '<tr><td colspan="' + cols.length + '" class="left">暂无数据</td></tr>';
   const t = {};
-  all.forEach(r => cols.forEach(c => { if (c[0] !== 'name') t[c[0]] = (t[c[0]] || 0) + (Number(cellVal(r, c[0])) || 0); }));
+  all.forEach(r => cols.forEach(c => {
+    if (c[0] === 'name' || c[0] === 'rate') return;
+    t[c[0]] = (t[c[0]] || 0) + (Number(cellVal(r, c[0])) || 0);
+  }));
   if (t.net != null) t.net = netDisp(t);   // 合计行也用可复现口径
   document.querySelector('#chan-table tfoot').innerHTML = '<tr>' + cols.map(c => {
     if (c[0] === 'name') return '<td class="left">合计</td>';
+    if (c[0] === 'rate') return '<td class="right">' + pct(viewRate()) + '</td>';
     if (c[0] === 'orders' || c[0] === 'lv2') return '<td class="right">' + (t[c[0]] || 0) + '</td>';
     return '<td class="right">' + num(t[c[0]] || 0) + '</td>';
   }).join('') + '</tr>';
@@ -492,8 +499,25 @@ function deriveDaily(list) {
     M.forEach(f => { if (HAS(f)) row[f] = Math.round(row[f] * 100) / 100; });
     return row;
   }).sort((a, b) => a.date < b.date ? 1 : (a.date > b.date ? -1 : (b.gmv - a.gmv)));
+  applyChanRate();
 }
 
+/* 渠道汇总的佣金比例：该渠道下所有分天行比例一致就直接用，否则按计佣基数加权 */
+function applyChanRate() {
+  const by = {};
+  dailyRows.forEach(r => {
+    const b = (by[r.chan] = by[r.chan] || { rates: [], com: 0, base: 0 });
+    if (typeof r.rate === 'number') b.rates.push(r.rate);
+    b.com += Number(r.commission) || 0;
+    b.base += (Number(r.gmv) || 0) - (Number(r.subsidy) || 0) - (Number(r.refund) || 0);
+  });
+  chanRows.forEach(row => {
+    const b = by[row.name];
+    if (!b) { row.rate = null; return; }
+    const rs = uniq(b.rates);
+    row.rate = rs.length === 1 ? rs[0] : (b.base > 0.005 ? b.com / b.base : (rs.length ? rs[0] : null));
+  });
+}
 function dailyCol() { return 'item_id'; }
 
 
@@ -581,11 +605,13 @@ function downloadCSV() {
 function downloadChanCSV() {
   const cols = chanCols();
   const lines = [cols.map(c => csvCell(c[1])).join(',')];
-  visibleChanRows().forEach(r => lines.push(cols.map(c => csvCell(cellVal(r, c[0]))).join(',')));
+  visibleChanRows().forEach(r => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(r.rate) : cellVal(r, c[0]))).join(',')));
   const t = {};
-  cols.forEach(c => { if (['orders', 'lv2', 'gmv', 'subsidy', 'refund', 'net', 'commission'].indexOf(c[0]) >= 0)
+  cols.forEach(c => { if (c[0] === 'rate') return;
+    if (['orders', 'lv2', 'gmv', 'subsidy', 'refund', 'net', 'commission'].indexOf(c[0]) >= 0)
     t[c[0]] = c[0] === 'net' ? r2(viewSummary.net || 0) : r2(visibleChanRows().reduce((a, r) => a + (Number(cellVal(r, c[0])) || 0), 0)); });
-  lines.push(cols.map(c => csvCell(c[0] === 'name' ? '合计' : (t[c[0]] != null ? t[c[0]] : ''))).join(','));
+  lines.push(cols.map(c => csvCell(c[0] === 'name' ? '合计'
+    : (c[0] === 'rate' ? pct(viewRate()) : (t[c[0]] != null ? t[c[0]] : '')))).join(','));
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
