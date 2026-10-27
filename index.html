@@ -130,7 +130,7 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -167,7 +167,7 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"9d792edaf1dd8680984479f72234816c","i":300000},"a53d34e16eaa808a":{"s":"995ef9fb5d731d7e71c99893c39f2b7e","i":300000},"17975b9fb6770666":{"s":"1dac3a9ca63271a2d1ff7acfbf42d542","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"6e2dfbf2bc57a0a5b58276a8c273c841","i":300000},"a53d34e16eaa808a":{"s":"1e9118d1365b21a738f982834000499e","i":300000},"17975b9fb6770666":{"s":"b9a51126f48788c41375796a1d830625","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
