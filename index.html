@@ -130,7 +130,7 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径<b>电淘补贴金额</b>仅合计配置活动下的子订单权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -167,7 +167,7 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"8cd44ed9d67ac61f59f1b93b26862d1a","i":300000},"a53d34e16eaa808a":{"s":"dd7f501c321ba1e1432d4c8facb022f3","i":300000},"17975b9fb6770666":{"s":"e9c13fb36d652bd7fc0ba01560fcf807","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"9e7cda66c255d44b5ea5b1d1b4c7d370","i":300000},"a53d34e16eaa808a":{"s":"288266010e8bb6a101bbae7a102118e9","i":300000},"17975b9fb6770666":{"s":"07261a284ffca422e77d869915a385d8","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -213,7 +213,7 @@ const TIPS = {
   '成交笔数': '主订单去重。不按子订单计；分天数据里一个主订单含多商品时会计入多行',
   '二级数': '该一级渠道下出现过的二级渠道个数',
   '成交金额': '成交金额（GMV），含后续发生退款的订单',
-  '电淘补贴金额': '新口径仅合计配置活动下的子订单权益，计佣前先行扣除；历史口径数据保持原值',
+  '电淘补贴金额': '配置奖池用于订单准入；电淘补贴金额合计该子订单所有奖池权益，计佣前先行扣除；历史口径数据保持原值',
   '退款金额': '当日退款金额，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。带 † 的是人工标记已全额退款（退款金额=成交金额、佣金归零）',
   '实付金额': '实付金额=成交金额−电淘补贴金额−退款金额。当日退款可能大于成交，此时实付为 0 或负数',
   '佣金比例': '计佣比例。新口径取钉钉配置表的比例快照，老数据按 佣金/(成交−补贴−退款) 反推；所选区间混用多档比例时显示有效比例，订单明细行为该笔主订单的比例',
