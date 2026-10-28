@@ -85,15 +85,13 @@ tfoot td { padding: 12px; }
 .out-btn { padding:6px 14px;border:1px solid rgba(255,255,255,.28);border-radius:6px;background:transparent;color:#cbd5e1;font-size:12px;cursor:pointer; }
 .out-btn:hover { color:#fff;border-color:#fff; }
 .fb-off { display:none !important; }
-th[data-tip], .kpi-card[data-tip] { cursor:help; }
+th[data-tip] { cursor:help; }
 .th-tip { display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;border-radius:50%;
   background:#dbeafe;color:#1d4ed8;font-size:10px;font-style:normal;font-weight:600;margin-left:3px;cursor:help; }
-.kpi-card .th-tip { vertical-align:middle; }
 #tipbox { position:fixed;z-index:10000;display:none;max-width:330px;background:#1f2937;color:#fff;font-size:12px;
   line-height:1.75;font-weight:400;padding:10px 12px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none; }
 .note { font-size:12px;color:#6b7280;line-height:1.7;margin-top:10px; }
 .note b { color:#374151; }
-.kpi-card[title] { cursor:help; }
 </style>
 </head>
 <body>
@@ -130,7 +128,7 @@ th[data-tip], .kpi-card[data-tip] { cursor:help; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头/指标卡右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -351,8 +349,8 @@ function buildKPI() {
   if (canNet()) cards.push(['实付金额', money(netDisp(s))]);
   if (HAS('commission')) cards.push(['佣金比例', pct(viewRate())], ['预估佣金金额', money(s.commission)]);
   document.getElementById('kpi-row').innerHTML = cards.map(c =>
-    '<div class="kpi-card" data-tip="' + esc(TIPS[c[0]] || '') + '"><div class="kpi-label">' + c[0]
-    + (TIPS[c[0]] ? '<span class="th-tip">i</span>' : '') + '</div><div class="kpi-value blue">' + c[1]
+    '<div class="kpi-card"><div class="kpi-label">' + c[0]
+    + '</div><div class="kpi-value blue">' + c[1]
     + '</div></div>').join('');
 }
 
