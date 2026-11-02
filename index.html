@@ -120,6 +120,7 @@ tfoot td { padding: 12px; }
         </select>
         <select id="l1-sel" onchange="onL1Change()"></select>
         <select id="chan-sel" onchange="applyFilter()"></select>
+        <select id="shop-sel" onchange="applyFilter()" aria-label="店铺名称"></select>
         <button class="btn" onclick="resetFilter()">重置</button>
       </div>
     </div>
@@ -402,6 +403,15 @@ function buildFilterBar() {
   l1sel.value = '';
   l1sel.classList.toggle('fb-off', role !== 'admin');
   buildL2Options();
+  const shopSelect = document.getElementById('shop-sel');
+  const shopNames = uniq(DATA.orders.flatMap(o => (o.shop || '').split(' / ')).concat((DATA.daily || []).map(r => r.shop || '')).filter(Boolean)).sort();
+  shopSelect.innerHTML = '<option value="">全部店铺</option>';
+  shopNames.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name; option.textContent = name;
+    shopSelect.appendChild(option);
+  });
+  shopSelect.value = '';
 }
 
 function buildL2Options() {
@@ -518,7 +528,9 @@ function pager(id, pages, cur, go) {
 function applyFilter() {
   const s = document.getElementById('date-start').value, e = document.getElementById('date-end').value;
   const l1 = document.getElementById('l1-sel').value, l2 = document.getElementById('chan-sel').value;
-  const inRange = x => (!s || x.date >= s) && (!e || x.date <= e) && (!l1 || l1of(x) === l1) && (!l2 || l2of(x) === l2);
+  const shop = document.getElementById('shop-sel').value;
+  const inRange = x => (!s || x.date >= s) && (!e || x.date <= e) && (!l1 || l1of(x) === l1) && (!l2 || l2of(x) === l2)
+    && (!shop || (x.shop || '').split(' / ').includes(shop));
   filtered = DATA.orders.filter(inRange);
   if (s && e && s > e) filtered = [];
   ordPage = 1; chanPage = 1; dailyPage = 1;
@@ -531,6 +543,7 @@ function resetFilter() {
   document.getElementById('date-start').value = '';
   document.getElementById('date-end').value = '';
   document.getElementById('l1-sel').value = '';
+  document.getElementById('shop-sel').value = '';
   buildL2Options();
   document.getElementById('quick-sel').value = QUICK_DEFAULT;
   quickRange(QUICK_DEFAULT);
