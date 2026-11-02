@@ -162,7 +162,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"55061ce10a45e43e95ce3d7acc81ff6a","i":300000},"a53d34e16eaa808a":{"s":"8648c193658187456d9f1a0acf8ba028","i":300000},"17975b9fb6770666":{"s":"235271db6eca4e09a59e5eea07f34d3e","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"740f152c26dd6acea1778c1d72e2a532","i":300000},"a53d34e16eaa808a":{"s":"f7ed175200d12dcd8da95f41728bb5b8","i":300000},"17975b9fb6770666":{"s":"56089df1021770711af43b086d237a98","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -537,13 +537,13 @@ function resetFilter() {
 }
 
 function ordCols() {
-  const c = [['date', '日期'], ['orderId', '订单编号']];
+  const c = [['date', '日期'], ['shop', '店铺名称'], ['orderId', '订单编号']];
   if (role === 'admin') c.push(['l1', '一级渠道']);
   c.push(['l2', '二级渠道'], ['gmv', '成交金额'], ['subsidy', '电淘补贴金额'], ['refund', '退款金额']);
   if (canNet()) c.push(['net', '实付金额']);
   if (HAS('commission')) c.push(['rate', '佣金比例']);
   c.push(['commission', '预估佣金金额']);
-  return c.filter(x => (x[0] === 'date' || x[0] === 'orderId' || x[0] === 'l1' || x[0] === 'l2'
+  return c.filter(x => (x[0] === 'date' || x[0] === 'shop' || x[0] === 'orderId' || x[0] === 'l1' || x[0] === 'l2'
     || x[0] === 'net' || x[0] === 'rate' || HAS(x[0])));
 }
 
