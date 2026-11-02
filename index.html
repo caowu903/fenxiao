@@ -85,9 +85,6 @@ tfoot td { padding: 12px; }
 .out-btn { padding:6px 14px;border:1px solid rgba(255,255,255,.28);border-radius:6px;background:transparent;color:#cbd5e1;font-size:12px;cursor:pointer; }
 .out-btn:hover { color:#fff;border-color:#fff; }
 .fb-off { display:none !important; }
-th[data-tip] { cursor:help; }
-.th-tip { display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;border-radius:50%;
-  background:#dbeafe;color:#1d4ed8;font-size:10px;font-style:normal;font-weight:600;margin-left:3px;cursor:help; }
 #tipbox { position:fixed;z-index:10000;display:none;max-width:330px;background:#1f2937;color:#fff;font-size:12px;
   line-height:1.75;font-weight:400;padding:10px 12px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none; }
 .note { font-size:12px;color:#6b7280;line-height:1.7;margin-top:10px; }
@@ -128,7 +125,7 @@ th[data-tip] { cursor:help; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。表头右侧的 <i>i</i> 可悬浮查看逐字段说明，悬浮内容与本条口径一致。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -199,28 +196,8 @@ const netOf = r => r2((Number(r.gmv) || 0) - (Number(r.subsidy) || 0) - (Number(
 const netDisp = r => (Math.round(Number(r.gmv) || 0) - Math.round(Number(r.subsidy) || 0)
   - Math.round(Number(r.refund) || 0)) || 0;   // || 0 归一 -0，全额退款单不显示成「-0」
 
-/* 字段口径备注：表头悬浮提示 + 表尾说明 */
-const TIPS = {
-  '日期': '支付日。老口径段取订单付款时间的日期，新口径段取数仓分区 ds',
-  '订单编号': '主订单号（一笔主订单可含多个子订单/多个商品）',
-  '渠道': '管理员看一级渠道，渠道账号看自己的二级渠道',
-  '一级渠道': '合作渠道主体，可看到其下所有二级渠道的数据',
-  '二级渠道': '渠道内的投放位/页面标识（落地页 page= 参数），暂不单独开设查看权限',
-  '店铺名称': '成交店铺。老数据（09-09~09-10 清风）无商品维度明细，商品列记 (未拆分)',
-  '商品ID': '数仓商品维度；(未拆分)=该笔成交拿不到商品粒度',
-  '成交笔数': '主订单去重。不按子订单计；分天数据里一个主订单含多商品时会计入多行',
-  '二级数': '该一级渠道下出现过的二级渠道个数',
-  '成交金额': '成交金额（GMV），含后续发生退款的订单',
-  '电淘补贴金额': '配置奖池用于订单准入；电淘补贴金额合计该子订单所有奖池权益，计佣前先行扣除；历史口径数据保持原值',
-  '退款金额': '当日退款金额，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。带 † 的是人工标记已全额退款（退款金额=成交金额、佣金归零）',
-  '实付金额': '实付金额=成交金额−电淘补贴金额−退款金额。当日退款可能大于成交，此时实付为 0 或负数',
-  '佣金比例': '计佣比例。新口径取钉钉配置表的比例快照，老数据按 佣金/(成交−补贴−退款) 反推；所选区间混用多档比例时显示有效比例，订单明细行为该笔主订单的比例',
-  '预估佣金金额': '预估佣金金额=实付金额×佣金比例。实付为负的单按 0 计、不倒扣，仅支付成功计佣、退款单计 0；最终退款回传后佣金随之重算，本页数字为「预估」'
-};
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-/* 不用原生 title（要悬停 1 秒、部分浏览器/缩放状态下不出），改成自绘气泡，鼠标移上即出 */
-const tip = c => '<th class="' + (c[2] || 'left') + '" data-tip="' + esc(TIPS[c[1]] || '') + '">'
-  + c[1] + (TIPS[c[1]] ? '<span class="th-tip">i</span>' : '') + '</th>';
+const tip = c => '<th class="' + (c[2] || 'left') + '">' + c[1] + '</th>';
 const r2 = n => { const v = Number(n) || 0, a = Math.abs(v);
   if (a >= 1e15) return Math.round(v * 100) / 100;
   return (v < 0 ? -1 : 1) * Math.round(parseFloat(a.toFixed(10) + 'e2')) / 100; };
