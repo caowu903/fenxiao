@@ -658,12 +658,14 @@ function hiddenDailyRow(row) {
 }
 
 function dailyTableSummary() {
-  const summary = { ...viewSummary };
-  dailyRows.filter(hiddenDailyRow).forEach(row => {
+  const visible = dailyRows.filter(row => !hiddenDailyRow(row));
+  if (visible.length && visible.length === dailyRows.length) return { ...viewSummary };
+  const summary = { orders: 0, gmv: 0, subsidy: 0, refund: 0, commission: 0, net: 0 };
+  visible.forEach(row => {
     ['orders', 'gmv', 'subsidy', 'refund', 'commission'].forEach(field => {
-      summary[field] = r2((summary[field] || 0) - (row[field] || 0));
+      summary[field] = r2(summary[field] + (row[field] || 0));
     });
-    summary.net = r2((summary.net || 0) - netOf(row));
+    summary.net = r2(summary.net + netOf(row));
   });
   return summary;
 }
