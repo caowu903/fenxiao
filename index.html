@@ -126,7 +126,7 @@ tfoot td { padding: 12px; }
     </div>
     <div class="section-title">核心指标</div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>=成交金额−电淘补贴金额−退款金额（当日退款可能大于成交，此时实付为 0 或负数）；<b>预估佣金金额</b>=实付金额×佣金比例，实付为负的单按 0 计、不倒扣，仅支付成功（order_status 2/6）计佣、退款单计 0；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。</div>
+    <div class="note">口径：<b>成交笔数</b>=主订单去重；新口径配置奖池用于订单准入，<b>电淘补贴金额</b>合计该子订单所有奖池权益；<b>实付金额</b>按每笔主订单计算：退款金额&gt;0（含部分退款）时为0，否则为成交金额−电淘补贴金额−退款金额；汇总实付金额为各订单实付金额之和；<b>预估佣金金额</b>=实付金额×佣金比例，退款金额&gt;0的订单佣金为0，实付为负的单仍按0计、不倒扣；<b>退款金额</b>为<b>当日退款金额</b>，不含历史与后续退款——最终退款需由运营事后上传退款状态，届时佣金随之重算，本页数字为「预估」。</div>
     <div class="charts-row">
       <div class="chart-card wide"><div class="section-title">成交趋势</div><div id="chart-trend" style="height:300px"></div></div>
       <div class="chart-card narrow"><div class="section-title">佣金趋势</div><div id="chart-gmv" style="height:300px"></div></div>
@@ -163,7 +163,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"3f1407b4e5dd8117c0deff3f64681f9c","i":300000},"a53d34e16eaa808a":{"s":"796629860fbe75881a0f9c7fcb51d23b","i":300000},"17975b9fb6770666":{"s":"56089df1021770711af43b086d237a98","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"bcd1c13bd08055cfa1312c063210b890","i":300000},"a53d34e16eaa808a":{"s":"032cb56ee37f060ac9a5b22bd2ea5197","i":300000},"17975b9fb6770666":{"s":"bd3132296f9f68c649d44b7f8d82b883","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -189,13 +189,10 @@ const intfmt = n => (Math.round(Number(n) || 0) || 0).toLocaleString('zh-CN');
 /* 百分比统一保留一位小数，如 50.5% */
 const pct = v => (v == null || !isFinite(v)) ? '—' : (Math.round(v * 1000) / 10).toFixed(1) + '%';
 
-/* 实付金额 = 成交金额 - 电淘补贴金额 - 退款金额。
-   netOf  用于合计/导出（2 位小数，精确）；
-   netDisp 用于页面显示（用屏幕上已取整的三个数相减，保证肉眼可复现，不会差 1 元）。 */
 const canNet = () => HAS('gmv') && HAS('subsidy') && HAS('refund');
-const netOf = r => r2((Number(r.gmv) || 0) - (Number(r.subsidy) || 0) - (Number(r.refund) || 0));
-const netDisp = r => (Math.round(Number(r.gmv) || 0) - Math.round(Number(r.subsidy) || 0)
-  - Math.round(Number(r.refund) || 0)) || 0;   // || 0 归一 -0，全额退款单不显示成「-0」
+const netOf = r => typeof r.net === 'number' ? r.net : ((Number(r.refund) || 0) > 0 ? 0
+  : r2((Number(r.gmv) || 0) - (Number(r.subsidy) || 0)));
+const netDisp = r => Math.round(netOf(r)) || 0;
 
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const tip = c => '<th class="' + (c[2] || 'left') + '">' + c[1] + '</th>';
@@ -337,7 +334,7 @@ function viewRate() {
   if (!HAS('commission')) return null;
   const rs = uniq(dailyRows.map(r => r.rate).filter(v => typeof v === 'number'));
   if (rs.length === 1) return rs[0];
-  const base = (viewSummary.gmv || 0) - (viewSummary.subsidy || 0) - (viewSummary.refund || 0);
+  const base = netOf(viewSummary);
   if (base > 0.005) return (viewSummary.commission || 0) / base;
   return rs.length ? rs[0] : null;
 }
@@ -379,7 +376,7 @@ function buildChanTable() {
     if (c[0] === 'name' || c[0] === 'rate') return;
     t[c[0]] = (t[c[0]] || 0) + (Number(cellVal(r, c[0])) || 0);
   }));
-  if (t.net != null) t.net = netDisp(t);   // 合计行也用可复现口径
+  if (t.net != null) t.net = netDisp(t);
   document.querySelector('#chan-table tfoot').innerHTML = '<tr>' + cols.map(c => {
     if (c[0] === 'name') return '<td class="left">合计</td>';
     if (c[0] === 'rate') return '<td class="right">' + pct(viewRate()) + '</td>';
@@ -450,7 +447,7 @@ function deriveView(list) {
   chanRows = [];
   dailyRows = [];
   M.forEach(f => { if (HAS(f)) viewSummary[f] = sumOf(list, f); });
-  if (canNet()) viewSummary.net = r2((viewSummary.gmv || 0) - (viewSummary.subsidy || 0) - (viewSummary.refund || 0));
+  if (canNet()) viewSummary.net = r2(list.reduce((total, order) => total + netOf(order), 0));
   const daily = {}, groups = {};
   list.forEach(o => { (daily[o.date.slice(5)] = daily[o.date.slice(5)] || []).push(o); });
   Object.keys(daily).sort().forEach(k => {
@@ -467,6 +464,7 @@ function deriveView(list) {
     const sub = groups[n], row = { name: n, orders: sub.length };
     M.forEach(f => { if (HAS(f)) row[f] = sumOf(sub, f); });
     row.lv2 = admin ? uniq(sub.map(l2of)).length : null;
+    if (canNet()) row.net = r2(sub.reduce((total, order) => total + netOf(order), 0));
     return row;
   }).sort((a, b) => (b.gmv || 0) - (a.gmv || 0));
 }
@@ -479,13 +477,15 @@ function deriveDaily(list) {
     const k = r.date + '|' + n + '|' + (r.shop || '') + '|' + (r[dailyCol()] || '');
     const row = g[k] || (g[k] = { date: r.date, chan: n, shop: r.shop || '', item: r[dailyCol()] || '',
                                   name: r.item || '', orders: 0, rates: [], _r: {},
-                                  gmv: 0, subsidy: 0, refund: 0, commission: 0 });
+                                  gmv: 0, subsidy: 0, refund: 0, commission: 0, net: 0 });
     row.orders += Number(r.orders) || 0;
+    row.net += netOf(r);
     M.forEach(f => { if (HAS(f)) row[f] += Number(r[f]) || 0; });
     if (typeof r.rate === 'number') row.rates.push(r.rate);
   });
   dailyRows = Object.keys(g).map(k => {
-    const row = g[k], base = row.gmv - row.subsidy - row.refund;
+    const row = g[k], base = row.net;
+    row.net = r2(row.net);
     const rs = uniq(row.rates);
     row.rate = rs.length === 1 ? rs[0] : (base > 0.005 ? row.commission / base : (rs.length ? rs[0] : null));
     delete row.rates;
@@ -502,7 +502,7 @@ function applyChanRate() {
     const b = (by[r.chan] = by[r.chan] || { rates: [], com: 0, base: 0 });
     if (typeof r.rate === 'number') b.rates.push(r.rate);
     b.com += Number(r.commission) || 0;
-    b.base += (Number(r.gmv) || 0) - (Number(r.subsidy) || 0) - (Number(r.refund) || 0);
+    b.base += netOf(r);
   });
   chanRows.forEach(row => {
     const b = by[row.name];
