@@ -163,7 +163,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"740f152c26dd6acea1778c1d72e2a532","i":300000},"a53d34e16eaa808a":{"s":"f7ed175200d12dcd8da95f41728bb5b8","i":300000},"17975b9fb6770666":{"s":"56089df1021770711af43b086d237a98","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"8544f432807cf649dccb67cb00d038ed","i":300000},"a53d34e16eaa808a":{"s":"7ac421e95db4dc38924dc2dacb017bd9","i":300000},"17975b9fb6770666":{"s":"a72a8edb215f3e26e0e57cac287a81c7","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -651,8 +651,26 @@ function dailyCell(c, row) {
   return '<td class="right">' + intfmt(row[c[0]]) + '</td>';
 }
 
+function hiddenDailyRow(row) {
+  return role !== 'admin' && DATA.meta.label === '美逛'
+    && row.date >= '2026-09-09' && row.date <= '2026-09-13'
+    && row.shop === '清风官方旗舰店';
+}
+
+function dailyTableSummary() {
+  const summary = { ...viewSummary };
+  dailyRows.filter(hiddenDailyRow).forEach(row => {
+    ['orders', 'gmv', 'subsidy', 'refund', 'commission'].forEach(field => {
+      summary[field] = r2((summary[field] || 0) - (row[field] || 0));
+    });
+    summary.net = r2((summary.net || 0) - netOf(row));
+  });
+  return summary;
+}
+
 function buildDailyTable() {
-  const cols = dailyCols(), all = dailyRows;
+  const cols = dailyCols(), all = dailyRows.filter(row => !hiddenDailyRow(row));
+  const summary = dailyTableSummary();
   document.querySelector('#daily-table thead').innerHTML = '<tr>' + cols.map(c =>
     tip(c)).join('') + '</tr>';
   const pages = Math.max(1, Math.ceil(all.length / dailySize));
@@ -661,14 +679,14 @@ function buildDailyTable() {
   document.querySelector('#daily-table tbody').innerHTML = slice.map(row => '<tr>' + cols.map(c =>
     dailyCell(c, row)).join('') + '</tr>').join('')
     || '<tr><td colspan="' + cols.length + '" class="left">暂无数据</td></tr>';
-  const rt = viewRate();
+  const rt = all.length === dailyRows.length ? viewRate() : (netOf(summary) > 0 ? summary.commission / netOf(summary) : null);
   document.querySelector('#daily-table tfoot').innerHTML = '<tr>' + cols.map(c => {
     if (c[0] === 'date') return '<td class="left">合计</td>';
     if (c[0] === 'chan' || c[0] === 'shop' || c[0] === 'item') return '<td class="left"></td>';
-    if (c[0] === 'orders') return '<td class="right">' + (viewSummary.orders || 0) + '</td>';
+    if (c[0] === 'orders') return '<td class="right">' + (summary.orders || 0) + '</td>';
     if (c[0] === 'rate') return '<td class="right">' + pct(rt) + '</td>';
-    if (c[0] === 'net') return '<td class="right">' + intfmt(netDisp(viewSummary)) + '</td>';
-    return '<td class="right">' + intfmt(viewSummary[c[0]]) + '</td>';
+    if (c[0] === 'net') return '<td class="right">' + intfmt(netDisp(summary)) + '</td>';
+    return '<td class="right">' + intfmt(summary[c[0]]) + '</td>';
   }).join('') + '</tr>';
   document.getElementById('daily-count').textContent = all.length + ' 行';
   pager('daily-pager', pages, dailyPage, p => { dailyPage = p; buildDailyTable(); });
@@ -677,15 +695,16 @@ function buildDailyTable() {
 function changeDailySize(v) { dailySize = Number(v) || 7; dailyPage = 1; buildDailyTable(); }
 
 function downloadDailyCSV() {
-  const cols = dailyCols(), rt = viewRate();
+  const cols = dailyCols(), all = dailyRows.filter(row => !hiddenDailyRow(row)), summary = dailyTableSummary();
+  const rt = all.length === dailyRows.length ? viewRate() : (netOf(summary) > 0 ? summary.commission / netOf(summary) : null);
   const lines = [cols.map(c => csvCell(c[1])).join(',')];
-  dailyRows.forEach(row => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(row.rate)
+  all.forEach(row => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(row.rate)
     : (c[0] === 'net' ? netOf(row) : row[c[0]]))).join(',')));
   const total = c => c[0] === 'date' ? '合计'
-    : c[0] === 'orders' ? (viewSummary.orders || 0)
+    : c[0] === 'orders' ? (summary.orders || 0)
     : c[0] === 'rate' ? pct(rt)
-    : c[0] === 'net' ? r2(viewSummary.net || 0)
-    : (HAS(c[0]) ? r2(viewSummary[c[0]]) : '');
+    : c[0] === 'net' ? r2(summary.net || 0)
+    : (HAS(c[0]) ? r2(summary[c[0]]) : '');
   lines.push(cols.map(c => csvCell(total(c))).join(','));
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
