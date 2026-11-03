@@ -691,6 +691,7 @@ function buildDailyTable() {
     return '<td class="right">' + intfmt(summary[c[0]]) + '</td>';
   }).join('') + '</tr>';
   document.getElementById('daily-count').textContent = all.length + ' 行';
+  document.querySelector('#daily-table tfoot').style.display = all.length ? '' : 'none';
   pager('daily-pager', pages, dailyPage, p => { dailyPage = p; buildDailyTable(); });
 }
 
