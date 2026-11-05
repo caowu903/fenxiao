@@ -147,7 +147,7 @@ tfoot td { padding: 12px; }
         <span class="fb-hint" style="margin:0">按 日期 × 渠道 × 店铺 × 商品 汇总</span></div>
       <table id="daily-table"><thead></thead><tbody></tbody><tfoot></tfoot></table>
       <div class="pager" id="daily-pager"></div>
-      <div class="note"><b>成交笔数</b>为该组合去重主单数，一个主订单含多商品时会同时计入多行，因此各行笔数之和可能大于合计行（合计行按去重后的真实笔数）。<b>商品ID</b> 显示 <b>(未拆分)</b> 表示该笔成交在数仓拿不到商品粒度（老数据 09-09~09-10 清风），金额已全额计入该店铺行。<b>佣金比例</b> 优先取配置表比例快照，老数据按 佣金/(成交−补贴−退款) 反推。</div>
+      <div class="note"><b>成交笔数</b>为该组合去重主单数，一个主订单含多商品时会同时计入多行，因此各行笔数之和可能大于合计行（合计行按去重后的真实笔数）。<b>佣金比例</b> 优先取配置表比例快照，老数据按 佣金/(成交−补贴−退款) 反推。</div>
     </div>
     <div class="table-card" id="ord-card">
       <div class="table-top"><div class="section-title" style="margin:0">订单明细</div>
@@ -830,3 +830,4 @@ resume();
 </script>
 </body>
 </html>
+
