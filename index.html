@@ -163,7 +163,7 @@ tfoot td { padding: 12px; }
 </div>
 
 <script>
-const REGISTRY = {"f266c75af6dfee20":{"s":"99fd43ca26cc94442acf35ba855d6613","i":300000},"a53d34e16eaa808a":{"s":"2307d00655d08216c906e7a88253b668","i":300000},"17975b9fb6770666":{"s":"266e13f0b48d0e83b6ded3c705e9bceb","i":300000}};
+const REGISTRY = {"f266c75af6dfee20":{"s":"80ae0f4dea66775ef19287c073dd545c","i":300000},"a53d34e16eaa808a":{"s":"83af40de33a3efd9fd1ef9cf3aa4f42c","i":300000},"17975b9fb6770666":{"s":"3550026a07dc551366ee8c40fce06fcd","i":300000}};
 const KDF = { iterations: 300000, hash: 'SHA-256', keyBytes: 32, ivBytes: 12 };
 let DATA = null, FIELDS = [], role = '', ordPage = 1, ordSize = 20, chanPage = 1, chanSize = 7;
 let dailyPage = 1, dailySize = 7, dailyRows = [];
@@ -569,6 +569,10 @@ function ordCell(o, id) {
   return typeof v === 'number' ? money(v) : (v || '—');
 }
 
+function visibleOrderRows() {
+  return filtered.filter(order => !hiddenDailyRow(order));
+}
+
 function render() {
   if (!DATA) return;
   const spEl = document.getElementById('sp-note');
@@ -577,12 +581,13 @@ function render() {
     : '';
   const cols = ordCols();
   document.querySelector('#ord-table thead').innerHTML = '<tr>' + cols.map(c => tip(c)).join('') + '</tr>';
-  const rows = filtered.slice((ordPage - 1) * ordSize, ordPage * ordSize);
+  const all = visibleOrderRows();
+  const rows = all.slice((ordPage - 1) * ordSize, ordPage * ordSize);
   document.querySelector('#ord-table tbody').innerHTML = rows.map(o => '<tr>' + cols.map(c =>
     '<td>' + ordCell(o, c[0]) + '</td>').join('') + '</tr>').join('')
     || '<tr><td colspan="' + cols.length + '">暂无数据</td></tr>';
-  const pages = Math.max(1, Math.ceil(filtered.length / ordSize));
-  document.getElementById('ord-count').textContent = '共 ' + filtered.length + ' 条';
+  const pages = Math.max(1, Math.ceil(all.length / ordSize));
+  document.getElementById('ord-count').textContent = '共 ' + all.length + ' 条';
   pager('ord-pager', pages, ordPage, p => { ordPage = p; render(); });
 }
 
@@ -598,14 +603,15 @@ function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n]/.test
 
 function downloadCSV() {
   const cols = ordCols(), name = DATA.meta.label;
+  const all = visibleOrderRows();
   const lines = [cols.map(c => csvCell(c[1])).join(',')];
-  filtered.forEach(o => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(ordVal(o, c[0]))
+  all.forEach(o => lines.push(cols.map(c => csvCell(c[0] === 'rate' ? pct(ordVal(o, c[0]))
     : ordVal(o, c[0]))).join(',')));
   const t = {};
   cols.forEach(c => { if (['gmv', 'subsidy', 'refund', 'net', 'commission'].indexOf(c[0]) >= 0)
-    t[c[0]] = r2(filtered.reduce((a, o) => a + (Number(ordVal(o, c[0])) || 0), 0)); });
+    t[c[0]] = r2(all.reduce((a, o) => a + (Number(ordVal(o, c[0])) || 0), 0)); });
   lines.push(cols.map(c => csvCell(c[0] === 'date' ? '合计'
-    : (c[0] === 'rate' ? pct(viewRate()) : (t[c[0]] != null ? t[c[0]] : '')))).join(','));
+    : (c[0] === 'rate' ? pct(t.net > 0 ? (t.commission || 0) / t.net : null) : (t[c[0]] != null ? t[c[0]] : '')))).join(','));
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
